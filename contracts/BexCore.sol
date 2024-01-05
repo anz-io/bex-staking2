@@ -49,12 +49,10 @@ contract BexCore is OwnableUpgradeable {
 
     /* ============================= Events ============================= */
     event Registered(string indexed bonxName, address indexed user);
-    event BuyShare(string indexed bonxName, address indexed user, uint256 share, uint256 nextId, uint256 originCost, uint256 fee);
-    event SellShare(string indexed bonxName, address indexed user, uint256 share, uint256 nextId, uint256 originReward, uint256 fee);
-
+    event BuyShare(string indexed bonxName, address indexed user, uint256 share, uint256 nextId, uint256 cost, uint256 fee);
+    event SellShare(string indexed bonxName, address indexed user, uint256 share, uint256 nextId, uint256 reward, uint256 fee);
     event ClaimFees(address indexed admin, uint256 amount);
     event ClaimRenewalFunds(address indexed admin, uint256 amount);
-
     event Renewal(string indexed bonxName, uint256 amount);
 
 
@@ -104,7 +102,6 @@ contract BexCore is OwnableUpgradeable {
     function consumeSignature(
         bytes4 selector,
         string memory name,
-        uint256 content,    // Share amount or token amount or `0`.
         address user,
         uint256 timestamp,
         bytes memory signature
@@ -119,13 +116,7 @@ contract BexCore is OwnableUpgradeable {
         require(block.timestamp >= timestamp, "Timestamp error!");
 
         // Check the signature content
-        bytes memory data = abi.encodePacked(
-            selector,
-            name,
-            content,
-            user,
-            timestamp
-        );
+        bytes memory data = abi.encodePacked(selector, name, user, timestamp);
         bytes32 signedMessageHash = ECDSA.toEthSignedMessageHash(data);
         address signer = ECDSA.recover(signedMessageHash, signature);
         require(signer == backendSigner || disableSignatureMode(), "Signature invalid!");
@@ -139,7 +130,7 @@ contract BexCore is OwnableUpgradeable {
     ) public {
         // Check signature
         consumeSignature(
-            this.register.selector, name, 0, _msgSender(), timestamp, signature
+            this.register.selector, name, _msgSender(), timestamp, signature
         );
 
         // Register the BONX
@@ -175,17 +166,20 @@ contract BexCore is OwnableUpgradeable {
                 bonxStage[name] = 3;           // Stage transition: 2 -> 3
         }
 
-        // Transfer tokens
-        uint256 totalCost = bindingSumExclusive(totalShare, totalShare + share);
-        require(totalCost <= maxOutTokenAmount, "Total cost more than expected!");
-        IERC20(tokenAddress).transferFrom(user, address(this), totalCost);
+        // Calculate fees and transfer tokens
+        uint256 cost = bindingSumExclusive(totalShare, totalShare + share);
+        uint256 fee = cost * taxBasePoint / 10000;
+        feeCollected += fee;
+        uint256 actualCost = cost + fee;
+        require(actualCost <= maxOutTokenAmount, "Total cost more than expected!");
+        IERC20(tokenAddress).transferFrom(user, address(this), actualCost);
         
         // Update storage
         bonxTotalShare[name] += share;
         userShare[name][user] += share;
 
         // Event
-        emit BuyShare(name, user, share, bonxTotalShare[name], totalCost);
+        emit BuyShare(name, user, share, bonxTotalShare[name], actualCost, fee);
     }
 
 
@@ -210,10 +204,10 @@ contract BexCore is OwnableUpgradeable {
         }
 
         // Calculate fees and transfer tokens
-        uint256 totalReward = bindingSumExclusive(totalShare - share, totalShare);
-        uint256 fee = totalReward * taxBasePoint / 10000;
+        uint256 reward = bindingSumExclusive(totalShare - share, totalShare);
+        uint256 fee = reward * taxBasePoint / 10000;
         feeCollected += fee;
-        uint256 actualReward = totalReward - fee;
+        uint256 actualReward = reward - fee;
         require(actualReward >= minInTokenAmount, "Total reward less than expected!");
         IERC20(tokenAddress).transfer(user, actualReward);
         
