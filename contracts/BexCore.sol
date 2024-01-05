@@ -5,87 +5,83 @@ import "@openzeppelin/contracts/interfaces/IERC20.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/interfaces/IERC721Upgradeable.sol";
+import "./BONX.sol";
 
 contract BexCore is OwnableUpgradeable {
 
-    bool constant DISABLE_SIG_MODE = true;  // Just for debug. Will delete this later.
-    
-    /* ============================= Struct ============================= */
-    struct BonxInfo {
-        uint8 stage;                    // 0,1,2,3 (0 for not registered)
-        uint16 epoch;                   // add 1 whenever a new contest has started
-        uint256 totalShare;
-        uint256 nftTokenId;
-    }
-
     /* ============================ Variables =========================== */
-    /* ------------- Supply related ------------- */
-    uint256 public restrictSupply;      // Supply for stage 1 <-> stage 2
+    /* ----------------- Supply ----------------- */
+    uint256 public restrictedSupply;    // Supply for stage 1 <-> stage 2, inclusive for stage 1
     uint256 public mintLimit;           // Mint limit in stage 1
     uint256 public holdLimit;           // Hold limit in stage 1
     uint256 public maxSupply;           // Supply for stage 2 --> stage 3
 
-    /* ----------- Signature related ------------ */
-    address public backendSigner;
-    uint256 public signatureValidTime;
+    /* ---------------- Signature --------------- */
+    address public backendSigner;       // Signer for register a new BONX
+    uint256 public signatureValidTime;  // Valid time for a signature
 
-    /* -------------- Tax related --------------- */
-    uint256 public taxBasePointProtocol;
-    uint256 public taxBasePointOwner;
-    uint256 public taxBasePointInviter;
+    /* ------------------- Tax ------------------ */
+    uint256 public taxBasePoint;        // Tax base point (default 3% = 300)
 
-    /* ------------ Address related ------------- */
-    IERC20 public tokenAddress;
-    IERC721Upgradeable public bonxAddress;
+    /* ----------------- Address ---------------- */
+    address public tokenAddress;
+    address public bonxAddress;
 
-    /* ---------------- Storage ----------------- */
-    // Total fee collected for the protocol
-    uint256 public feeCollectedProtocol;
+    /* ----------------- Storage ---------------- */
+    // Total fee collected for the protocol, owners and inviters
+    uint256 public feeCollected;
 
-    // bonx => [fee collected for this bonx's owner]
-    mapping(string => uint256) public feeCollectedOwner;
+    // Total renewal funds transferred to the protocol
+    uint256 public renewalFunds;
 
-    // inviter => [fee collected for him]
-    mapping(address => uint256) public feeCollectedInviter;
+    // bonx => [stage information for this bonx (0~3, 0 for not registered)]
+    mapping(string => uint8) public bonxStage;
 
-    // user => his inviter
-    mapping(address => address) public inviters;
-
-    // bonx => [storage information for this bonx]
-    mapping(string => BonxInfo) public bonxInfo;
+    // bonx => [total share num of the bonding]
+    mapping(string => uint256) public bonxTotalShare;
 
     // bonx => user => [user's share num of this bonx]
     mapping(string => mapping(address => uint256)) public userShare;
-
-    // bonx => epoch => [participated user list of this bonx in this epoch]
-    mapping(string => mapping(uint16 => address [])) userList;
-
-    // bonx => epoch => user => [user's invested amount for this bonx in this epoch]
-    mapping(string => mapping(uint16 => mapping(address => int))) userInvested;
 
     // keccak256(signature) => [whether this signature is used]
     mapping(bytes32 => bool) public signatureIsUsed;
 
 
+    /* ============================= Events ============================= */
+    event Registered(string indexed bonxName, address indexed user);
+    event BuyShare(string indexed bonxName, address indexed user, uint256 share, uint256 nextId, uint256 originCost, uint256 fee);
+    event SellShare(string indexed bonxName, address indexed user, uint256 share, uint256 nextId, uint256 originReward, uint256 fee);
+
+    event ClaimFees(address indexed admin, uint256 amount);
+    event ClaimRenewalFunds(address indexed admin, uint256 amount);
+
+    event Renewal(string indexed bonxName, uint256 amount);
+
+
     /* =========================== Constructor ========================== */
-    function initialize(address tokenAddress_, address bonxAddress_) public initializer {
+    function initialize(address backendSigner_, address tokenAddress_, address bonxAddress_) public initializer {
         __Ownable_init();
 
-        restrictSupply = 1000;
+        restrictedSupply = 1000;
         mintLimit = 10;
         holdLimit = 50;
         maxSupply = 15000;
+
+        backendSigner = backendSigner_;
         signatureValidTime = 3 minutes;
 
-        taxBasePointProtocol = 100;
-        taxBasePointOwner = 100;
-        taxBasePointInviter = 100;
+        taxBasePoint = 300;
 
-        tokenAddress = IERC20(tokenAddress_);
-        bonxAddress = IERC721Upgradeable(bonxAddress_);
+        tokenAddress = tokenAddress_;
+        bonxAddress = bonxAddress_;
     }
 
+
     /* ========================= Pure functions ========================= */
+    function disableSignatureMode() public virtual pure returns (bool) {
+        return false;       // Override this for debugging in the testnet
+    }
+
     function bindingCurve(uint256 x) public virtual pure returns (uint256) {
         return 10 * x * x;
     }
@@ -99,15 +95,10 @@ contract BexCore is OwnableUpgradeable {
         return sum;
     }
 
+
     /* ========================= View functions ========================= */
 
     /* ========================= Write functions ======================== */
-
-    /* ----------- Internal management ---------- */
-    function _userListManage(string memory name, uint16 epoch, address user) internal {
-        if (userInvested[name][epoch][user] == 0)
-            userList[name][epoch].push(user);
-    }
 
     /* ---------------- Signature --------------- */
     function consumeSignature(
@@ -137,11 +128,10 @@ contract BexCore is OwnableUpgradeable {
         );
         bytes32 signedMessageHash = ECDSA.toEthSignedMessageHash(data);
         address signer = ECDSA.recover(signedMessageHash, signature);
-        require(signer == backendSigner || DISABLE_SIG_MODE, "Signature invalid!"); 
-            // Just for debug. Will delete `DISABLE_SIG_MODE` this later.
+        require(signer == backendSigner || disableSignatureMode(), "Signature invalid!");
     }
 
-    /* ---------- Register & Buy & Sell --------- */
+    /* ---------------- For User ---------------- */
     function register(
         string memory name,
         uint256 timestamp,
@@ -149,53 +139,53 @@ contract BexCore is OwnableUpgradeable {
     ) public {
         // Check signature
         consumeSignature(
-            this.register.selector, name, 0,
-            _msgSender(), timestamp, signature
+            this.register.selector, name, 0, _msgSender(), timestamp, signature
         );
 
         // Register the BONX
-        bonxInfo[name].stage = 1;
+        bonxStage[name] = 1;
 
-        // emit Registered
+        // Event
+        emit Registered(name, _msgSender());
     }
+
 
     function buyBonding(
         string memory name, 
         uint256 share, 
         uint256 maxOutTokenAmount
     ) public {
+        // Local variables
         address user = _msgSender();
-        uint8 stage = bonxInfo[name].stage;
-        uint256 totalShare = bonxInfo[name].totalShare;
+        uint8 stage = bonxStage[name];
+        uint256 totalShare = bonxTotalShare[name];
 
-        // Check stage and share num
+        // Check requirements
         require(stage != 0, "BONX not registered!");
-        require(bonxInfo[name].totalShare + share <= maxSupply, "Exceed max supply!");
+        require(bonxTotalShare[name] + share <= maxSupply, "Exceed max supply!");
 
         // Stage transition
         if (stage == 1) {
             require(share <= mintLimit, "Exceed mint limit in stage 1!");
             require(userShare[name][user] + share <= holdLimit, "Exceed hold limit in stage 1!");
-            if (bonxInfo[name].totalShare + share > restrictSupply) 
-                bonxInfo[name].stage = 2;           // Stage transition: 1 -> 2
+            if (bonxTotalShare[name] + share > restrictedSupply) 
+                bonxStage[name] = 2;           // Stage transition: 1 -> 2
         } else if (stage == 2) {
-            if (bonxInfo[name].totalShare + share == maxSupply)
-                bonxInfo[name].stage = 3;           // Stage transition: 2 -> 3
+            if (bonxTotalShare[name] + share == maxSupply)
+                bonxStage[name] = 3;           // Stage transition: 2 -> 3
         }
 
         // Transfer tokens
         uint256 totalCost = bindingSumExclusive(totalShare, totalShare + share);
         require(totalCost <= maxOutTokenAmount, "Total cost more than expected!");
-        tokenAddress.transferFrom(user, address(this), totalCost);
+        IERC20(tokenAddress).transferFrom(user, address(this), totalCost);
         
         // Update storage
-        _userListManage(name, bonxInfo[name].epoch, user);
-        bonxInfo[name].totalShare += share;
+        bonxTotalShare[name] += share;
         userShare[name][user] += share;
-        userInvested[name][bonxInfo[name].epoch][user] += int(totalCost);
 
-        // uint256 nextId = bonxInfo[name].totalShare;
-        // emit BuyShare(name, user, share, totalCost, nextId);
+        // Event
+        emit BuyShare(name, user, share, bonxTotalShare[name], totalCost);
     }
 
 
@@ -204,51 +194,89 @@ contract BexCore is OwnableUpgradeable {
         uint256 share, 
         uint256 minInTokenAmount
     ) public {
+        // Local variables
         address user = _msgSender();
-        uint8 stage = bonxInfo[name].stage;
-        uint256 totalShare = bonxInfo[name].totalShare;
+        uint8 stage = bonxStage[name];
+        uint256 totalShare = bonxTotalShare[name];
 
         // Check stage and share num
         require(stage != 0, "BONX not registered!");
-        require(bonxInfo[name].totalShare + share <= maxSupply, "Exceed max supply!");
         require(userShare[name][user] >= share, "Not enough share for the buyer!");
 
         // Stage transition
         if (stage == 2) {
-            if (bonxInfo[name].totalShare - share <= restrictSupply)
-                bonxInfo[name].stage = 1;           // Stage transition: 2 -> 1
+            if (bonxTotalShare[name] - share <= restrictedSupply)
+                bonxStage[name] = 1;           // Stage transition: 2 -> 1
         }
 
         // Calculate fees and transfer tokens
         uint256 totalReward = bindingSumExclusive(totalShare - share, totalShare);
-        require(totalReward >= minInTokenAmount, "Total reward less than expected!");
-        uint256 feeForProtocol = totalReward * taxBasePointProtocol / 10000;
-        uint256 feeForOwner = totalReward * taxBasePointOwner / 10000;
-        uint256 feeForInviter = totalReward * taxBasePointInviter / 10000;
-        feeCollectedProtocol += feeForProtocol;
-        feeCollectedOwner[name] += feeForOwner;
-        feeCollectedInviter[inviters[user]] += feeForInviter;   // If the inviter is 0, admin can withdraw the fee.
-
-        // Transfer tokens
-        uint256 actualReward = totalReward - feeForProtocol - feeForOwner - feeForInviter;
-        tokenAddress.transfer(user, actualReward);
+        uint256 fee = totalReward * taxBasePoint / 10000;
+        feeCollected += fee;
+        uint256 actualReward = totalReward - fee;
+        require(actualReward >= minInTokenAmount, "Total reward less than expected!");
+        IERC20(tokenAddress).transfer(user, actualReward);
         
         // Update storage
-        _userListManage(name, bonxInfo[name].epoch, user);
-        bonxInfo[name].totalShare -= share;
+        bonxTotalShare[name] -= share;
         userShare[name][user] -= share;
-        userInvested[name][bonxInfo[name].epoch][user] -= int(totalReward);
-
-        // uint256 nextId = bonxInfo[name].totalShare;
-        // emit SellShare(name, user, shareNum, totalReward, nextId, feeForOwner, feeForProtocol);
+        
+        // Event
+        emit SellShare(name, user, share, bonxTotalShare[name], actualReward, fee);
     }
 
 
-    // function renewal() {}         // [in another contract!]
+    /* ---------------- For Admin --------------- */
+    // function startContest        [Off-chain!]
+    // function endContest          [Off-chain!]
+    // function retrieveOwnership   [Off-chain!]
 
-    // For Admin
-    // function startContest() {}           // epoch++, 2 days
-    // function endContest() {}             // has an owner, 90 days, mint NFT
-    // function retrieveOwnership() {}      // admin retrieve, burn  NFT?
+    function claimFeeProtocol() public onlyOwner {
+        uint256 feeCollected_ = feeCollected;
+        feeCollected = 0;
+        IERC20(tokenAddress).transfer(_msgSender(), feeCollected_);
+        emit ClaimFees(_msgSender(), feeCollected_);
+    }
+
+    function claimRenewalFunds() public onlyOwner {
+        uint256 renewalFunds_ = renewalFunds;
+        renewalFunds = 0;
+        IERC20(tokenAddress).transfer(_msgSender(), renewalFunds_);
+        emit ClaimRenewalFunds(_msgSender(), renewalFunds_);
+    }
     
+    function setRestrictedSupply(uint256 newRestrictedSupply) public onlyOwner {
+        restrictedSupply = newRestrictedSupply;
+    }
+
+    function setMintLimit(uint256 newMintLimit) public onlyOwner {
+        mintLimit = newMintLimit;
+    }
+
+    function setHoldLimit(uint256 newHoldLimit) public onlyOwner {
+        holdLimit = newHoldLimit;
+    }
+
+    function setMaxSupply(uint256 newMaxSupply) public onlyOwner {
+        maxSupply = newMaxSupply;
+    }
+
+    function setBackendSigner(address newBackendSigner) public onlyOwner {
+        backendSigner = newBackendSigner;
+    }
+
+    function setTaxBasePoint(uint256 newTaxBasePoint) public onlyOwner {
+        taxBasePoint = newTaxBasePoint;
+    }
+
+
+    /* ---------------- For Owner --------------- */
+    // function claimFeeOwner       [Off-chain!]
+
+    function renewal(string memory name, uint256 tokenAmount) public {
+        renewalFunds += tokenAmount;
+        IERC20(tokenAddress).transferFrom(_msgSender(), address(this), tokenAmount);
+        emit Renewal(name, tokenAmount);
+    }
+
 }
