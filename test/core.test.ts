@@ -1,9 +1,27 @@
 import { loadFixture, time } from "@nomicfoundation/hardhat-toolbox/network-helpers"
 import { expect } from "chai"
 import { ethers, upgrades } from "hardhat"
+import { BONX, BexCore } from "../typechain-types"
+import { Contract, Signer } from "ethers"
 
 const testnetMode = true
 const contractName = testnetMode ? 'BexCoreTest' : 'BexCore'
+
+function connectbexCore(bexCore: Contract, signer: Signer) {
+  return bexCore.connect(signer) as BexCore
+}
+
+function connectBonxNFT(bonxNFT: Contract, signer: Signer) {
+  return bonxNFT.connect(signer) as BONX
+}
+
+function getNow() {
+  return parseInt((Date.now() / 1000).toString())
+}
+
+async function getSig(signer: Signer) {
+  return await signer.signMessage('test message' + getNow())
+}
 
 describe("test the functions related to assets management", function () {
 
@@ -11,130 +29,76 @@ describe("test the functions related to assets management", function () {
     const [admin, carol, david, signer] = await ethers.getSigners()
 
     // Deploy contracts
-    const MockUSDT = await ethers.deployContract('MockUSDT')
-    const BonxNFT = await ethers.deployContract('BONX')
+    const mockUSDT = await ethers.deployContract('MockUSDT')
+    const bonxNFTFactory = await ethers.getContractFactory('BONX')
+    const bonxNFT = await upgrades.deployProxy(bonxNFTFactory)
 
-    const tokenAddress = await MockUSDT.getAddress()
-    const bonxAddress = await BonxNFT.getAddress()
+    const tokenAddress = await mockUSDT.getAddress()
+    const bonxAddress = await bonxNFT.getAddress()
 
-    const BexCoreFactory = await ethers.getContractFactory(contractName)
-    const BexCore = await upgrades.deployProxy(
-      BexCoreFactory, [signer.address, tokenAddress, bonxAddress]
+    const bexCoreFactory = await ethers.getContractFactory(contractName)
+    const bexCore = await upgrades.deployProxy(
+      bexCoreFactory, [signer.address, tokenAddress, bonxAddress]
     )
-    // const BexCore = await BexCoreFactory.deploy(
-    //   signer.address, tokenAddress, bonxAddress
-    // )
+    const bexCoreAddress = await bexCore.getAddress()
 
     // Mint Tokens to Carol & David
-    const amount = ethers.parseEther('40000')
-    await MockUSDT.transfer(carol.address, amount)
-//     await MasterToken.mint(david.address, amount)
-//     await MasterToken.connect(carol).approve(await Assets.getAddress(), amount)
-//     await MasterToken.connect(david).approve(await Assets.getAddress(), amount)
-
-//     // Mint FunctionBot NFT to Carol & David
-//     await FunctionBot.safeMint(carol.address, "")   // #0
-//     await FunctionBot.safeMint(carol.address, "")   // #1
-//     await FunctionBot.safeMint(carol.address, "")   // #2
-//     await FunctionBot.safeMint(david.address, "")   // #3
-//     await FunctionBot.connect(carol).approve(await Assets.getAddress(), 0)
-//     await FunctionBot.connect(carol).approve(await Assets.getAddress(), 1)
-//     await FunctionBot.connect(carol).approve(await Assets.getAddress(), 2)
-//     await FunctionBot.connect(david).approve(await Assets.getAddress(), 3)
-
-//     return { MasterToken, FunctionBot, Assets, owner, carol, david }
+    const amount = ethers.parseUnits('40000', 6)
+    await mockUSDT.transfer(carol.address, amount)
+    await mockUSDT.transfer(david.address, amount)
+    await mockUSDT.connect(carol).approve(bexCoreAddress, amount)
+    await mockUSDT.connect(david).approve(bexCoreAddress, amount)
+    
+    return { admin, carol, david, bexCore, mockUSDT, bonxNFT }
   }
 
   it("should deploy the contract correctly", async function () {
     await loadFixture(deployAssets)
   })
 
+  it("should finish user journey", async function () {
+    const { admin, carol, david, bexCore, mockUSDT, bonxNFT } = await loadFixture(deployAssets)
 
-  
-//   it("Assets functions test: part `Share`", async function () {
-//     const { MasterToken, Assets, owner, carol, david } = await loadFixture(deployAssets)
+    const bexCoreAdmin = connectbexCore(bexCore, admin)
+    const bexCoreCarol = connectbexCore(bexCore, carol)
+    const bexCoreDavid = connectbexCore(bexCore, david)
+    const bonxNFTAdmin = connectBonxNFT(bonxNFT, admin)
+    const bonxNFTCarol = connectBonxNFT(bonxNFT, carol)
 
-//     await Assets.connect(carol).purchase()  // 400 - 1 = 399
-//     await Assets.connect(carol).purchase()  // 399 - 2 = 397
-//     expect(await MasterToken.balanceOf(carol.address)).to.equal(ethers.parseEther('397'))
-//     await Assets.connect(david).purchase()  // 400 - 3 = 397
-//     await Assets.connect(david).purchase()  // 397 - 4 = 393
-//     expect(await MasterToken.balanceOf(david.address)).to.equal(ethers.parseEther('393'))
+    // Carol register a new bonx "hello"
+    const name = 'hello'
+    await bexCoreCarol.register(name, getNow(), await getSig(carol))
+    
+    // Carol buy 10 bonx, David buy 5 bonx
+    await bexCoreCarol.buyBonding(name, 10, 10000)    // expected: 2850 * 103%
+    await bexCoreDavid.buyBonding(name, 5, 10000)     // expected: 7300 * 103%
+    await bexCoreCarol.sellBonding(name, 7, 8000)     // expected: 8750 * 97%
+    
+    expect(await mockUSDT.balanceOf(carol.address)).to.equal
+      ('40000005553')     // 40000_000000 - 2935(.5) + 8488(-.5) = 40000005553
+    expect(await mockUSDT.balanceOf(david.address)).to.equal
+      ('39999992481')     // 40000_000000 - 7300   = 39999992481.0
+    
+    // Mint limit
+    await expect(bexCoreCarol.buyBonding(name, 11, 50000))
+      .to.be.revertedWith("Exceed mint limit in stage 1!")
 
-//     expect(await Assets.adminBalance()).to.equal(ethers.parseEther('0'))
+    // Award the winner
+    await bonxNFTAdmin.safeMint(carol.address, name)
+    expect(await bonxNFTAdmin.ownerOf(1)).to.equal(carol.address)
+    expect(await bonxNFTAdmin.getNextTokenId()).to.equal(2)
+    await bonxNFTCarol.transferFrom(carol.address, david.address, 1)
+    expect(await bonxNFTAdmin.ownerOf(1)).to.equal(david.address)
+    await bonxNFTAdmin.retrieveNFT(1)
+    expect(await bonxNFTAdmin.ownerOf(1)).to.equal(admin.address)
 
-//     await Assets.connect(carol).sell()      // 397 + 4 * 95% = 400.8
-//     expect(await MasterToken.balanceOf(carol.address)).to.equal(ethers.parseEther('400.8'))
-//     await Assets.connect(david).sell()      // 393 + 3 * 95% = 395.85
-//     expect(await MasterToken.balanceOf(david.address)).to.equal(ethers.parseEther('395.85'))
-//     await Assets.connect(carol).sell()      // 400.8 + 2 * 95% = 402.7
-//     expect(await MasterToken.balanceOf(carol.address)).to.equal(ethers.parseEther('402.7'))
-//     await expect(Assets.connect(carol).sell())
-//       .to.be.revertedWith('You have no Share Tokens to sell')
-
-//     // (4 + 3 + 2) * 5% = 0.45
-//     expect(await Assets.adminBalance()).to.equal(ethers.parseEther('0.45'))
-
-//     await Assets._claimAll()
-//     expect(await Assets.adminBalance()).to.equal(ethers.parseEther('0'))
-//     expect(await MasterToken.balanceOf(owner.address)).to.equal(ethers.parseEther('0.45'))
-//   })
-
-
-
-//   it("Assets function test: part `Energy`", async function () {
-//     const { MasterToken, Assets, owner, carol } = await loadFixture(deployAssets)
-
-//     // Charge for the first time
-//     expect(await Assets.energyOf(carol.address)).to.equal(0)
-//     await Assets.connect(carol).charge()    // Spend 1 $MTT for charging
-//     expect(await Assets.energyOf(carol.address)).to.equal(20)
-//     expect(await MasterToken.balanceOf(carol.address)).to.equal(ethers.parseEther('399'))
-
-//     // After 5 days...
-//     await time.increase(5 * 24 * 60 * 60)
-//     expect(await Assets.energyOf(carol.address)).to.equal(15)
-//     await Assets.connect(carol).charge()
-//     expect(await Assets.energyOf(carol.address)).to.equal(35)
-
-//     for (var _ of [0, 0, 0, 0]) { await Assets.connect(carol).charge() }
-//     expect(await Assets.energyOf(carol.address)).to.equal(100)
-//     await expect(Assets.connect(carol).charge()).to.be.revertedWith("No need to charge!")
-
-//     // After 105 days...
-//     await time.increase(105 * 24 * 60 * 60)
-//     expect(await Assets.energyOf(carol.address)).to.equal(0)
-//     await Assets.connect(carol).charge()
-//     expect(await Assets.energyOf(carol.address)).to.equal(20)
-
-//     await Assets._claimAll()
-//     expect(await MasterToken.balanceOf(owner.address)).to.equal(ethers.parseEther('7'))
-//   })
-
-
-
-//   it("Assets function test: part `Slots`", async function () {
-//     const { MasterToken, FunctionBot, Assets, owner, carol } = await loadFixture(deployAssets)
-
-//     await expect(Assets.connect(carol).installBot(3, 3))
-//       .to.be.revertedWith("You do not own this bot!")
-//     await expect(Assets.connect(carol).installBot(3, 0))
-//       .to.be.revertedWith("FunctionBot #0 is the reserved one!")
-//     await expect(Assets.connect(carol).installBot(5, 1))
-//       .to.be.revertedWith("Invalid slot ID")
-//     await Assets.connect(carol).installBot(3, 1)
-//     await expect(Assets.connect(carol).installBot(3, 2))
-//       .to.be.revertedWith("Slot is already occupied.")
-
-//     expect(await Assets.isInstalledOn(1)).to.equal(carol.address)
-//     expect((await Assets.slotsOf(carol.address))[3]).to.equal(1)
-
-//     await expect(Assets.connect(carol).uninstallBot(0))
-//       .to.be.revertedWith("Slot is empty.")
-//     await Assets.connect(carol).uninstallBot(3)
-
-//     expect(await Assets.isInstalledOn(1)).to.equal(ethers.ZeroAddress)
-//     expect((await Assets.slotsOf(carol.address))[3]).to.equal(0)
-//   })
+    // Claim fees
+    expect(await bexCoreAdmin.feeCollected()).to.equal
+      ('566')             // 2850 * 3% + 7300 * 3% + 8750 * 3% = 85(.5) + 219 + 262(.5) = 566
+    await bexCoreAdmin.claimFees()
+    expect(await mockUSDT.balanceOf(admin.address)).to.equal
+      ('920000000566')    // 1000000_000000 - 40000_000000 - 40000_000000 + 566
+    expect(await bexCoreAdmin.feeCollected()).to.equal('0')
+  })
 
 })

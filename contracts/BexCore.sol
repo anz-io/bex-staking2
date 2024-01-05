@@ -49,8 +49,14 @@ contract BexCore is OwnableUpgradeable {
 
     /* ============================= Events ============================= */
     event Registered(string indexed bonxName, address indexed user);
-    event BuyShare(string indexed bonxName, address indexed user, uint256 share, uint256 nextId, uint256 cost, uint256 fee);
-    event SellShare(string indexed bonxName, address indexed user, uint256 share, uint256 nextId, uint256 reward, uint256 fee);
+    event BuyShare(
+        string indexed bonxName, address indexed user, uint256 share, 
+        uint256 nextId, uint256 originCost, uint256 afterFeeCost, uint256 fee
+    );
+    event SellShare(
+        string indexed bonxName, address indexed user, uint256 share, 
+        uint256 nextId, uint256 originReward, uint256 afterFeeReward, uint256 fee
+    );
     event ClaimFees(address indexed admin, uint256 amount);
     event ClaimRenewalFunds(address indexed admin, uint256 amount);
     event Renewal(string indexed bonxName, uint256 amount);
@@ -179,7 +185,7 @@ contract BexCore is OwnableUpgradeable {
         userShare[name][user] += share;
 
         // Event
-        emit BuyShare(name, user, share, bonxTotalShare[name], actualCost, fee);
+        emit BuyShare(name, user, share, bonxTotalShare[name], cost, actualCost, fee);
     }
 
 
@@ -216,7 +222,7 @@ contract BexCore is OwnableUpgradeable {
         userShare[name][user] -= share;
         
         // Event
-        emit SellShare(name, user, share, bonxTotalShare[name], actualReward, fee);
+        emit SellShare(name, user, share, bonxTotalShare[name], reward, actualReward, fee);
     }
 
 
@@ -225,7 +231,7 @@ contract BexCore is OwnableUpgradeable {
     // function endContest          [Off-chain!]
     // function retrieveOwnership   [Off-chain!]
 
-    function claimFeeProtocol() public onlyOwner {
+    function claimFees() public onlyOwner {
         uint256 feeCollected_ = feeCollected;
         feeCollected = 0;
         IERC20(tokenAddress).transfer(_msgSender(), feeCollected_);
