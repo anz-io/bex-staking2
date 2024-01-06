@@ -48,18 +48,21 @@ contract BexCore is OwnableUpgradeable {
 
 
     /* ============================= Events ============================= */
-    event Registered(string indexed bonxName, address indexed user);
+    event Registered(string bonxName, address indexed user);
     event BuyShare(
-        string indexed bonxName, address indexed user, uint256 share, 
+        string bonxName, address indexed user, uint256 share, 
         uint256 nextId, uint256 originCost, uint256 afterFeeCost, uint256 fee
     );
     event SellShare(
-        string indexed bonxName, address indexed user, uint256 share, 
+        string bonxName, address indexed user, uint256 share, 
         uint256 nextId, uint256 originReward, uint256 afterFeeReward, uint256 fee
+    );
+    event TransferShare(
+        string bonxName, address indexed from, address indexed to, uint256 share
     );
     event ClaimFees(address indexed admin, uint256 amount);
     event ClaimRenewalFunds(address indexed admin, uint256 amount);
-    event Renewal(string indexed bonxName, uint256 amount);
+    event Renewal(string bonxName, uint256 amount);
 
 
     /* =========================== Constructor ========================== */
@@ -223,6 +226,28 @@ contract BexCore is OwnableUpgradeable {
         
         // Event
         emit SellShare(name, user, share, bonxTotalShare[name], reward, actualReward, fee);
+    }
+
+
+    function transferBonding(
+        string memory name, 
+        address to, 
+        uint256 share
+    ) public {
+        // Local variables
+        address user = _msgSender();
+        uint8 stage = bonxStage[name];
+
+        // Check stage and share num
+        require(stage == 3, "Transfer is only allowed in stage 3!");
+        require(userShare[name][user] >= share, "Not enough share for transfer!");
+
+        // Update storage
+        userShare[name][user] -= share;
+        userShare[name][to] += share;
+
+        // Event
+        emit TransferShare(name, user, to, share);
     }
 
 

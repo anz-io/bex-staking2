@@ -15,12 +15,12 @@ function connectBonxNFT(bonxNFT: Contract, signer: Signer) {
   return bonxNFT.connect(signer) as BONX
 }
 
-function getNow() {
+function nowTime() {
   return parseInt((Date.now() / 1000).toString())
 }
 
 async function getSig(signer: Signer) {
-  return await signer.signMessage('test message' + getNow())
+  return await signer.signMessage('test message' + nowTime())
 }
 
 describe("test the functions related to assets management", function () {
@@ -52,9 +52,11 @@ describe("test the functions related to assets management", function () {
     return { admin, carol, david, bexCore, mockUSDT, bonxNFT }
   }
 
+
   it("should deploy the contract correctly", async function () {
     await loadFixture(deployAssets)
   })
+
 
   it("should finish user journey", async function () {
     const { admin, carol, david, bexCore, mockUSDT, bonxNFT } = await loadFixture(deployAssets)
@@ -67,9 +69,9 @@ describe("test the functions related to assets management", function () {
 
     // Carol register a new bonx "hello"
     const name = 'hello'
-    await bexCoreCarol.register(name, getNow(), await getSig(carol))
+    await bexCoreCarol.register(name, nowTime(), await getSig(carol))
     
-    // Carol buy 10 bonx, David buy 5 bonx
+    // Carol buy 10 bondings, David buy 5 bondings
     await bexCoreCarol.buyBonding(name, 10, 10000)    // expected: 2850 * 103%
     await bexCoreDavid.buyBonding(name, 5, 10000)     // expected: 7300 * 103%
     await bexCoreCarol.sellBonding(name, 7, 8000)     // expected: 8750 * 97%
@@ -99,6 +101,40 @@ describe("test the functions related to assets management", function () {
     expect(await mockUSDT.balanceOf(admin.address)).to.equal
       ('920000000566')    // 1000000_000000 - 40000_000000 - 40000_000000 + 566
     expect(await bexCoreAdmin.feeCollected()).to.equal('0')
+  })
+
+
+  it("should process correctly at stage 1/2/3", async function () {
+    const { admin, carol, david, bexCore, mockUSDT, bonxNFT } = await loadFixture(deployAssets)
+
+    const bexCoreAdmin = connectbexCore(bexCore, admin)
+    const bexCoreCarol = connectbexCore(bexCore, carol)
+
+    // Carol register a new bonx "hello"
+    const name = 'hello'
+    await bexCoreCarol.register(name, nowTime(), await getSig(carol))
+    
+    // Carol buy 50 bonding and sell 10
+    for (let i = 0; i < 5; i++) {
+      await bexCoreCarol.buyBonding(name, 10, 400000)    
+      // expected total: [2935.5, 22505.5, 62675.5, 123445.5, 204815.5]
+    }
+    expect(await mockUSDT.balanceOf(carol.address)).to.equal
+      ('39999583625')    // 40000_000000 - 416375(+2.5) = 39999583623 
+    
+    await expect(bexCoreCarol.buyBonding(name, 10, 400000)).to.be
+      .revertedWith("Exceed hold limit in stage 1!")
+    await bexCoreCarol.sellBonding(name, 10, 10000)      // expected total: 198850 * 97%
+    expect(await mockUSDT.balanceOf(carol.address)).to.equal
+      ('39999776510')    // 39999583625 + 192885(-.5) = 39999776510
+
+    // Change mint limit and hold limit
+    await bexCoreAdmin.setMintLimit(100)
+    await bexCoreAdmin.setHoldLimit(100)
+    await bexCoreAdmin.setRestrictedSupply(100)
+
+    // await bexCoreCarol.buyBonding(name, 70, 5000000)      // expected total: 4170950 * 103%
+      
   })
 
 })
