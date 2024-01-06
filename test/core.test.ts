@@ -109,6 +109,7 @@ describe("test the functions related to assets management", function () {
 
     const bexCoreAdmin = connectbexCore(bexCore, admin)
     const bexCoreCarol = connectbexCore(bexCore, carol)
+    const bexCoreDavid = connectbexCore(bexCore, david)
 
     // Carol register a new bonx "hello"
     const name = 'hello'
@@ -133,8 +134,18 @@ describe("test the functions related to assets management", function () {
     await bexCoreAdmin.setHoldLimit(100)
     await bexCoreAdmin.setRestrictedSupply(100)
 
-    // await bexCoreCarol.buyBonding(name, 70, 5000000)      // expected total: 4170950 * 103%
-      
+    // David buy 70 bonding
+    await bexCoreDavid.buyBonding(name, 70, 5000000)      // expected total: 4170950 * 103%
+    expect(await mockUSDT.balanceOf(david.address)).to.equal
+      ('39995703922')    // 40000_000000 - 4296078(.5) = 39995703922
+    expect(await bexCoreDavid.bonxTotalShare(name)).to.equal('110')
+
+    // Carol buy 500 bonding
+    await bexCoreCarol.buyBonding(name, 500, 800_000000)   // expected total: 750367500 * 103%
+    expect(await mockUSDT.balanceOf(carol.address)).to.equal
+      ('39226897985')    // 39999_776510 - 772_878525 = 39226897985
+    
+    console.log("collected fee: ", await bexCoreAdmin.feeCollected())
   })
 
 })
