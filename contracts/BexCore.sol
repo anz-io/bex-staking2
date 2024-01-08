@@ -25,14 +25,10 @@ contract BexCore is OwnableUpgradeable {
 
     /* ----------------- Address ---------------- */
     address public tokenAddress;
-    address public bonxAddress;
 
     /* ----------------- Storage ---------------- */
     // Total fee collected for the protocol, owners and inviters
     uint256 public feeCollected;
-
-    // Total renewal funds transferred to the protocol
-    uint256 public renewalFunds;
 
     // bonx => [stage information for this bonx (0~3, 0 for not registered)]
     mapping(string => uint8) public bonxStage;
@@ -61,12 +57,10 @@ contract BexCore is OwnableUpgradeable {
         string bonxName, address indexed from, address indexed to, uint256 share
     );
     event ClaimFees(address indexed admin, uint256 amount);
-    event ClaimRenewalFunds(address indexed admin, uint256 amount);
-    event Renewal(string bonxName, uint256 amount);
 
 
     /* =========================== Constructor ========================== */
-    function initialize(address backendSigner_, address tokenAddress_, address bonxAddress_) public initializer {
+    function initialize(address backendSigner_, address tokenAddress_) public initializer {
         __Ownable_init();
 
         restrictedSupply = 1000;
@@ -80,7 +74,6 @@ contract BexCore is OwnableUpgradeable {
         taxBasePoint = 300;
 
         tokenAddress = tokenAddress_;
-        bonxAddress = bonxAddress_;
     }
 
 
@@ -144,9 +137,12 @@ contract BexCore is OwnableUpgradeable {
 
         // Register the BONX
         bonxStage[name] = 1;
+        bonxTotalShare[name] = 1;
+        userShare[name][_msgSender()] = 1;
 
         // Event
         emit Registered(name, _msgSender());
+        emit BuyShare(name, _msgSender(), 1, 1, 0, 0, 0);
     }
 
 
@@ -204,7 +200,7 @@ contract BexCore is OwnableUpgradeable {
 
         // Check stage and share num
         require(stage != 0, "BONX not registered!");
-        require(userShare[name][user] >= share, "Not enough share for the buyer!");
+        require(userShare[name][user] >= share, "Not enough share for the seller!");
 
         // Stage transition
         if (stage == 2) {
@@ -262,13 +258,6 @@ contract BexCore is OwnableUpgradeable {
         IERC20(tokenAddress).transfer(_msgSender(), feeCollected_);
         emit ClaimFees(_msgSender(), feeCollected_);
     }
-
-    function claimRenewalFunds() public onlyOwner {
-        uint256 renewalFunds_ = renewalFunds;
-        renewalFunds = 0;
-        IERC20(tokenAddress).transfer(_msgSender(), renewalFunds_);
-        emit ClaimRenewalFunds(_msgSender(), renewalFunds_);
-    }
     
     function setRestrictedSupply(uint256 newRestrictedSupply) public onlyOwner {
         restrictedSupply = newRestrictedSupply;
@@ -292,16 +281,6 @@ contract BexCore is OwnableUpgradeable {
 
     function setTaxBasePoint(uint256 newTaxBasePoint) public onlyOwner {
         taxBasePoint = newTaxBasePoint;
-    }
-
-
-    /* ---------------- For Owner --------------- */
-    // function claimFeeOwner       [Off-chain!]
-
-    function renewal(string memory name, uint256 tokenAmount) public {
-        renewalFunds += tokenAmount;
-        IERC20(tokenAddress).transferFrom(_msgSender(), address(this), tokenAmount);
-        emit Renewal(name, tokenAmount);
     }
 
 }

@@ -31,14 +31,13 @@ describe("test the functions related to assets management", function () {
     // Deploy contracts
     const mockUSDT = await ethers.deployContract('MockUSDT')
     const bonxNFTFactory = await ethers.getContractFactory('BONX')
-    const bonxNFT = await upgrades.deployProxy(bonxNFTFactory)
-
-    const tokenAddress = await mockUSDT.getAddress()
-    const bonxAddress = await bonxNFT.getAddress()
+    const bonxNFT = await upgrades.deployProxy(
+      bonxNFTFactory, [await mockUSDT.getAddress()]
+    )
 
     const bexCoreFactory = await ethers.getContractFactory(contractName)
     const bexCore = await upgrades.deployProxy(
-      bexCoreFactory, [signer.address, tokenAddress, bonxAddress]
+      bexCoreFactory, [signer.address, await mockUSDT.getAddress()]
     )
     const bexCoreAddress = await bexCore.getAddress()
 
@@ -72,7 +71,7 @@ describe("test the functions related to assets management", function () {
     await bexCoreCarol.register(name, nowTime(), await getSig(carol))
     
     // Carol buy 10 bondings, David buy 5 bondings
-    await bexCoreCarol.buyBonding(name, 10, 10000)    // expected: 2850 * 103%
+    await bexCoreCarol.buyBonding(name, 9, 10000)    // expected: 2850 * 103%
     await bexCoreDavid.buyBonding(name, 5, 10000)     // expected: 7300 * 103%
     await bexCoreCarol.sellBonding(name, 7, 8000)     // expected: 8750 * 97%
     
@@ -116,10 +115,11 @@ describe("test the functions related to assets management", function () {
     await bexCoreCarol.register(name, nowTime(), await getSig(carol))
     
     // Carol buy 50 bonding and sell 10
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 4; i++) {
       await bexCoreCarol.buyBonding(name, 10, 400000)    
       // expected total: [2935.5, 22505.5, 62675.5, 123445.5, 204815.5]
     }
+    await bexCoreCarol.buyBonding(name, 9, 400000)    
     expect(await mockUSDT.balanceOf(carol.address)).to.equal
       ('39999583625')    // 40000_000000 - 416375(+2.5) = 39999583623 
     
@@ -145,7 +145,7 @@ describe("test the functions related to assets management", function () {
     expect(await mockUSDT.balanceOf(carol.address)).to.equal
       ('39226897985')    // 39999_776510 - 772_878525 = 39226897985
     
-    console.log("collected fee: ", await bexCoreAdmin.feeCollected())
+    // console.log("collected fee: ", await bexCoreAdmin.feeCollected())
   })
 
 })

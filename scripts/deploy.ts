@@ -11,11 +11,11 @@ async function main() {
   // const mUSDT = await deployMockUSDT()
   // console.log("\x1b[0mMockUSDT deployed to:\x1b[32m", await mUSDT.getAddress())
 
-  const bonxNFT = await deployBONX()
+  const bonxNFT = await deployBONX(mUSDSTAddress)
   console.log("\x1b[0mBONX deployed to:\x1b[32m", await bonxNFT.getAddress())
 
   const bexCore = await deployBexCore(
-    adminAddress, mUSDSTAddress, await bonxNFT.getAddress(), testMode
+    adminAddress, mUSDSTAddress, testMode
   )
   console.log("\x1b[0mBexCore deployed to:\x1b[32m", await bexCore.getAddress())
 }
@@ -24,17 +24,19 @@ async function deployMockUSDT() {
   return (await ethers.deployContract("MockUSDT")) as MockUSDT
 }
 
-async function deployBONX() {
+async function deployBONX(tokenAddress: string) {
   const bonxNFTFactory = await ethers.getContractFactory('BONX')
-  const bonxNFT = await upgrades.deployProxy(bonxNFTFactory)
+  const bonxNFT = await upgrades.deployProxy(
+    bonxNFTFactory, [tokenAddress]
+  )
   return (bonxNFT as unknown as BONX)
 }
 
-async function deployBexCore(backendSigner: string, tokenAddress: string, bonxAddress: string, testMode: boolean) {
+async function deployBexCore(backendSigner: string, tokenAddress: string, testMode: boolean) {
   const bexCoreContractName = testMode ? "BexCoreTest" : "BexCore"
   const bexCoreFactory = await ethers.getContractFactory(bexCoreContractName)
   const bexCore = await upgrades.deployProxy(
-    bexCoreFactory, [backendSigner, tokenAddress, bonxAddress]
+    bexCoreFactory, [backendSigner, tokenAddress]
   )
   return (bexCore as unknown as BexCore)
 }
