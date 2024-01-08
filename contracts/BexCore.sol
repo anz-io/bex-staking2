@@ -260,18 +260,24 @@ contract BexCore is OwnableUpgradeable {
     }
     
     function setRestrictedSupply(uint256 newRestrictedSupply) public onlyOwner {
+        require(newRestrictedSupply <= maxSupply, "Restricted supply must be less than max supply!");
+        require(newRestrictedSupply >= holdLimit, "Restricted supply must be greater than hold limit!");
         restrictedSupply = newRestrictedSupply;
     }
 
     function setMintLimit(uint256 newMintLimit) public onlyOwner {
+        require(newMintLimit <= holdLimit, "Mint limit must be less than hold limit!");
         mintLimit = newMintLimit;
     }
 
     function setHoldLimit(uint256 newHoldLimit) public onlyOwner {
+        require(newHoldLimit >= mintLimit, "Hold limit must be greater than mint limit!");
+        require(newHoldLimit <= restrictedSupply, "Hold limit must be less than restricted supply!");
         holdLimit = newHoldLimit;
     }
 
     function setMaxSupply(uint256 newMaxSupply) public onlyOwner {
+        require(newMaxSupply >= restrictedSupply, "Max supply must be greater than restricted supply!");
         maxSupply = newMaxSupply;
     }
 
@@ -280,6 +286,7 @@ contract BexCore is OwnableUpgradeable {
     }
 
     function setTaxBasePoint(uint256 newTaxBasePoint) public onlyOwner {
+        require(newTaxBasePoint <= 10000, "Tax base point must be less than 10000!");
         taxBasePoint = newTaxBasePoint;
     }
 
