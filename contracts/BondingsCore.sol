@@ -4,10 +4,8 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/interfaces/IERC20.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/interfaces/IERC721Upgradeable.sol";
-import "./BONX.sol";
 
-contract BexCore is OwnableUpgradeable {
+contract BondingsCore is OwnableUpgradeable {
 
     /* ============================ Variables =========================== */
     /* ----------------- Supply ----------------- */
@@ -17,7 +15,7 @@ contract BexCore is OwnableUpgradeable {
     uint256 public maxSupply;           // Supply for stage 2 --> stage 3
 
     /* ---------------- Signature --------------- */
-    address public backendSigner;       // Signer for register a new BONX
+    address public backendSigner;       // Signer for register a new bondings
     uint256 public signatureValidTime;  // Valid time for a signature
 
     /* ------------------- Tax ------------------ */
@@ -30,13 +28,13 @@ contract BexCore is OwnableUpgradeable {
     // Total fee collected for the protocol, owners and inviters
     uint256 public feeCollected;
 
-    // bonx => [stage information for this bonx (0~3, 0 for not registered)]
-    mapping(string => uint8) public bonxStage;
+    // bondings => [stage information for this bondings (0~3, 0 for not registered)]
+    mapping(string => uint8) public bondingsStage;
 
-    // bonx => [total share num of the bonding]
-    mapping(string => uint256) public bonxTotalShare;
+    // bondings => [total share num of the bonding]
+    mapping(string => uint256) public bondingsTotalShare;
 
-    // bonx => user => [user's share num of this bonx]
+    // bondings => user => [user's share num of this bondings]
     mapping(string => mapping(address => uint256)) public userShare;
 
     // keccak256(signature) => [whether this signature is used]
@@ -44,17 +42,17 @@ contract BexCore is OwnableUpgradeable {
 
 
     /* ============================= Events ============================= */
-    event Registered(string bonxName, address indexed user);
-    event BuyShare(
-        string bonxName, address indexed user, uint256 share, 
+    event Registered(string bondingsName, address indexed user);
+    event BuyBondings(
+        string bondingsName, address indexed user, uint256 share, 
         uint256 nextId, uint256 originCost, uint256 afterFeeCost, uint256 fee
     );
-    event SellShare(
-        string bonxName, address indexed user, uint256 share, 
+    event SellBondings(
+        string bondingsName, address indexed user, uint256 share, 
         uint256 nextId, uint256 originReward, uint256 afterFeeReward, uint256 fee
     );
-    event TransferShare(
-        string bonxName, address indexed from, address indexed to, uint256 share
+    event TransferBondings(
+        string bondingsName, address indexed from, address indexed to, uint256 share
     );
     event ClaimFees(address indexed admin, uint256 amount);
 
@@ -82,15 +80,15 @@ contract BexCore is OwnableUpgradeable {
         return false;       // Override this for debugging in the testnet
     }
 
-    function bindingCurve(uint256 x) public virtual pure returns (uint256) {
+    function bondingCurve(uint256 x) public virtual pure returns (uint256) {
         return 10 * x * x;
     }
 
-    function bindingSumExclusive(uint256 start, uint256 end) 
+    function bondingSumExclusive(uint256 start, uint256 end) 
         public virtual pure returns (uint256) {
         uint256 sum = 0;
         for (uint256 i = start; i < end; i++) {
-            sum += bindingCurve(i);
+            sum += bondingCurve(i);
         }
         return sum;
     }
@@ -135,44 +133,44 @@ contract BexCore is OwnableUpgradeable {
             this.register.selector, name, _msgSender(), timestamp, signature
         );
 
-        // Register the BONX
-        bonxStage[name] = 1;
-        bonxTotalShare[name] = 1;
+        // Register the Bondings
+        bondingsStage[name] = 1;
+        bondingsTotalShare[name] = 1;
         userShare[name][_msgSender()] = 1;
 
         // Event
         emit Registered(name, _msgSender());
-        emit BuyShare(name, _msgSender(), 1, 1, 0, 0, 0);
+        emit BuyBondings(name, _msgSender(), 1, 1, 0, 0, 0);
     }
 
 
-    function buyBonding(
+    function buyBondings(
         string memory name, 
         uint256 share, 
         uint256 maxOutTokenAmount
     ) public {
         // Local variables
         address user = _msgSender();
-        uint8 stage = bonxStage[name];
-        uint256 totalShare = bonxTotalShare[name];
+        uint8 stage = bondingsStage[name];
+        uint256 totalShare = bondingsTotalShare[name];
 
         // Check requirements
-        require(stage != 0, "BONX not registered!");
-        require(bonxTotalShare[name] + share <= maxSupply, "Exceed max supply!");
+        require(stage != 0, "Bondings not registered!");
+        require(bondingsTotalShare[name] + share <= maxSupply, "Exceed max supply!");
 
         // Stage transition
         if (stage == 1) {
             require(share <= mintLimit, "Exceed mint limit in stage 1!");
             require(userShare[name][user] + share <= holdLimit, "Exceed hold limit in stage 1!");
-            if (bonxTotalShare[name] + share > restrictedSupply) 
-                bonxStage[name] = 2;           // Stage transition: 1 -> 2
+            if (bondingsTotalShare[name] + share > restrictedSupply) 
+                bondingsStage[name] = 2;           // Stage transition: 1 -> 2
         } else if (stage == 2) {
-            if (bonxTotalShare[name] + share == maxSupply)
-                bonxStage[name] = 3;           // Stage transition: 2 -> 3
+            if (bondingsTotalShare[name] + share == maxSupply)
+                bondingsStage[name] = 3;           // Stage transition: 2 -> 3
         }
 
         // Calculate fees and transfer tokens
-        uint256 cost = bindingSumExclusive(totalShare, totalShare + share);
+        uint256 cost = bondingSumExclusive(totalShare, totalShare + share);
         uint256 fee = cost * taxBasePoint / 10000;
         feeCollected += fee;
         uint256 actualCost = cost + fee;
@@ -180,36 +178,36 @@ contract BexCore is OwnableUpgradeable {
         IERC20(tokenAddress).transferFrom(user, address(this), actualCost);
         
         // Update storage
-        bonxTotalShare[name] += share;
+        bondingsTotalShare[name] += share;
         userShare[name][user] += share;
 
         // Event
-        emit BuyShare(name, user, share, bonxTotalShare[name], cost, actualCost, fee);
+        emit BuyBondings(name, user, share, bondingsTotalShare[name], cost, actualCost, fee);
     }
 
 
-    function sellBonding(
+    function sellBondings(
         string memory name, 
         uint256 share, 
         uint256 minInTokenAmount
     ) public {
         // Local variables
         address user = _msgSender();
-        uint8 stage = bonxStage[name];
-        uint256 totalShare = bonxTotalShare[name];
+        uint8 stage = bondingsStage[name];
+        uint256 totalShare = bondingsTotalShare[name];
 
         // Check stage and share num
-        require(stage != 0, "BONX not registered!");
+        require(stage != 0, "Bondings not registered!");
         require(userShare[name][user] >= share, "Not enough share for the seller!");
 
         // Stage transition
         if (stage == 2) {
-            if (bonxTotalShare[name] - share <= restrictedSupply)
-                bonxStage[name] = 1;           // Stage transition: 2 -> 1
+            if (bondingsTotalShare[name] - share <= restrictedSupply)
+                bondingsStage[name] = 1;           // Stage transition: 2 -> 1
         }
 
         // Calculate fees and transfer tokens
-        uint256 reward = bindingSumExclusive(totalShare - share, totalShare);
+        uint256 reward = bondingSumExclusive(totalShare - share, totalShare);
         uint256 fee = reward * taxBasePoint / 10000;
         feeCollected += fee;
         uint256 actualReward = reward - fee;
@@ -217,22 +215,22 @@ contract BexCore is OwnableUpgradeable {
         IERC20(tokenAddress).transfer(user, actualReward);
         
         // Update storage
-        bonxTotalShare[name] -= share;
+        bondingsTotalShare[name] -= share;
         userShare[name][user] -= share;
         
         // Event
-        emit SellShare(name, user, share, bonxTotalShare[name], reward, actualReward, fee);
+        emit SellBondings(name, user, share, bondingsTotalShare[name], reward, actualReward, fee);
     }
 
 
-    function transferBonding(
+    function transferBondings(
         string memory name, 
         address to, 
         uint256 share
     ) public {
         // Local variables
         address user = _msgSender();
-        uint8 stage = bonxStage[name];
+        uint8 stage = bondingsStage[name];
 
         // Check stage and share num
         require(stage == 3, "Transfer is only allowed in stage 3!");
@@ -243,7 +241,7 @@ contract BexCore is OwnableUpgradeable {
         userShare[name][to] += share;
 
         // Event
-        emit TransferShare(name, user, to, share);
+        emit TransferBondings(name, user, to, share);
     }
 
 

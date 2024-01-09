@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "../BexCore.sol";
+import "../BondingsCore.sol";
 
-contract BexCoreTest is BexCore {
+contract BondingsCoreTest is BondingsCore {
 
     /**
      * This is a test contract that inherits from the BexCore contract. 
