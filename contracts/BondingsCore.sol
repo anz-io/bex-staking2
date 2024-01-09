@@ -31,7 +31,7 @@ contract BondingsCore is OwnableUpgradeable {
     // bondings => [stage information for this bondings (0~3, 0 for not registered)]
     mapping(string => uint8) public bondingsStage;
 
-    // bondings => [total share num of the bonding]
+    // bondings => [total share num of the bondings]
     mapping(string => uint256) public bondingsTotalShare;
 
     // bondings => user => [user's share num of this bondings]
@@ -84,15 +84,12 @@ contract BondingsCore is OwnableUpgradeable {
         return 10 * x * x;
     }
 
-    function bondingSumExclusive(uint256 start, uint256 end) 
-        public virtual pure returns (uint256) {
-        uint256 sum = 0;
-        for (uint256 i = start; i < end; i++) {
-            sum += bondingCurve(i);
-        }
-        return sum;
+    function bondingSumExclusive(uint256 start, uint256 end) public virtual pure returns (uint256) {
+        require(start < end, "Invalid range");
+        uint256 endSum = (end - 1) * end * (2 * end - 1) / 6;
+        uint256 startSum = start > 1 ? (start - 1) * start * (2 * start - 1) / 6 : 0;
+        return 10 * (endSum - startSum);
     }
-
 
     /* ========================= View functions ========================= */
 
@@ -155,17 +152,18 @@ contract BondingsCore is OwnableUpgradeable {
         uint256 totalShare = bondingsTotalShare[name];
 
         // Check requirements
+        require(share > 0, "Share must be greater than 0!");
         require(stage != 0, "Bondings not registered!");
-        require(bondingsTotalShare[name] + share <= maxSupply, "Exceed max supply!");
+        require(totalShare + share <= maxSupply, "Exceed max supply!");
 
         // Stage transition
         if (stage == 1) {
             require(share <= mintLimit, "Exceed mint limit in stage 1!");
             require(userShare[name][user] + share <= holdLimit, "Exceed hold limit in stage 1!");
-            if (bondingsTotalShare[name] + share > restrictedSupply) 
+            if (totalShare + share > restrictedSupply) 
                 bondingsStage[name] = 2;           // Stage transition: 1 -> 2
         } else if (stage == 2) {
-            if (bondingsTotalShare[name] + share == maxSupply)
+            if (totalShare + share == maxSupply)
                 bondingsStage[name] = 3;           // Stage transition: 2 -> 3
         }
 
@@ -197,12 +195,13 @@ contract BondingsCore is OwnableUpgradeable {
         uint256 totalShare = bondingsTotalShare[name];
 
         // Check stage and share num
+        require(share > 0, "Share must be greater than 0!");
         require(stage != 0, "Bondings not registered!");
         require(userShare[name][user] >= share, "Not enough share for the seller!");
 
         // Stage transition
         if (stage == 2) {
-            if (bondingsTotalShare[name] - share <= restrictedSupply)
+            if (totalShare - share <= restrictedSupply)
                 bondingsStage[name] = 1;           // Stage transition: 2 -> 1
         }
 
