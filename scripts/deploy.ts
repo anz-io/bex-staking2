@@ -1,6 +1,6 @@
 import { ethers, upgrades } from "hardhat"
 import "dotenv/config"
-import { BONX, BexCore, MockUSDT } from "../typechain-types"
+import { BONX, BondingsCore, MockUSDT } from "../typechain-types"
 
 async function main() {
   const testMode = true
@@ -11,13 +11,13 @@ async function main() {
   // const mUSDT = await deployMockUSDT()
   // console.log("\x1b[0mMockUSDT deployed to:\x1b[32m", await mUSDT.getAddress())
 
-  const bonxNFT = await deployBONX(mUSDSTAddress)
-  console.log("\x1b[0mBONX deployed to:\x1b[32m", await bonxNFT.getAddress())
+  // const bonxNFT = await deployBONX(mUSDSTAddress)
+  // console.log("\x1b[0mBONX deployed to:\x1b[32m", await bonxNFT.getAddress())
 
-  const bexCore = await deployBexCore(
+  const bondingsCore = await deployBondingsCore(
     adminAddress, mUSDSTAddress, testMode
   )
-  console.log("\x1b[0mBexCore deployed to:\x1b[32m", await bexCore.getAddress())
+  console.log("\x1b[0mBondingsCore deployed to:\x1b[32m", await bondingsCore.getAddress())
 }
 
 async function deployMockUSDT() {
@@ -32,13 +32,13 @@ async function deployBONX(tokenAddress: string) {
   return (bonxNFT as unknown as BONX)
 }
 
-async function deployBexCore(backendSigner: string, tokenAddress: string, testMode: boolean) {
-  const bexCoreContractName = testMode ? "BexCoreTest" : "BexCore"
-  const bexCoreFactory = await ethers.getContractFactory(bexCoreContractName)
-  const bexCore = await upgrades.deployProxy(
-    bexCoreFactory, [backendSigner, tokenAddress]
+async function deployBondingsCore(backendSigner: string, tokenAddress: string, testMode: boolean) {
+  const bondingsCoreContractName = testMode ? "BondingsCoreTest" : "BondingsCore"
+  const bondingsCoreFactory = await ethers.getContractFactory(bondingsCoreContractName)
+  const bondingsCore = await upgrades.deployProxy(
+    bondingsCoreFactory, [backendSigner, tokenAddress]
   )
-  return (bexCore as unknown as BexCore)
+  return (bondingsCore as unknown as BondingsCore)
 }
 
 main()

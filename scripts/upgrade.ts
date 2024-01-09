@@ -4,8 +4,8 @@ import "dotenv/config"
 async function main() {
   const testMode = true
 
-  const newContractName = testMode ? "BexCoreTest" : "BexCore"
-  const proxyAddress = process.env.BEX_CORE!
+  const newContractName = testMode ? "BondingsCoreTest" : "BondingsCore"
+  const proxyAddress = process.env.BONDINGS_CORE!
 
   console.log(`Upgrading ${newContractName} contract for: \x1b[32m${proxyAddress}\x1b[0m`)
   await upgradeContract(proxyAddress, newContractName)
