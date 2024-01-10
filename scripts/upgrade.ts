@@ -4,11 +4,21 @@ import "dotenv/config"
 async function main() {
   const testMode = true
 
-  const newContractName = testMode ? "BondingsCoreTest" : "BondingsCore"
-  const proxyAddress = process.env.BONDINGS_CORE!
+  const newBonxNFTContractName = testMode ? "BONXTest" : "BONX"
+  const newBondingContractName = testMode ? "BondingsCoreTest" : "BondingsCore"
+  const proxyBonxNFTAddress = process.env.BONX_NFT!
+  const proxyBondingAddress = process.env.BONDINGS_CORE!
 
-  console.log(`Upgrading ${newContractName} contract for: \x1b[32m${proxyAddress}\x1b[0m`)
-  await upgradeContract(proxyAddress, newContractName)
+  // For Bondings Core contract
+  // console.log(`Upgrading ${newBondingContractName} contract for: 
+  //   \x1b[32m${proxyBondingAddress}\x1b[0m`)
+  // await upgradeContract(proxyBondingAddress, newBondingContractName)
+  // console.log("Upgraded!")
+
+  // For BONX NFT contract
+  console.log(`Upgrading ${newBonxNFTContractName} contract for: 
+    \x1b[32m${proxyBonxNFTAddress}\x1b[0m`)
+  await upgradeContract(proxyBonxNFTAddress, newBonxNFTContractName)
   console.log("Upgraded!")
 }
 

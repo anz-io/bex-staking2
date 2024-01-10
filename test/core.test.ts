@@ -5,7 +5,8 @@ import { BONX, BondingsCore } from "../typechain-types"
 import { Contract, Signer } from "ethers"
 
 const testnetMode = true
-const contractName = testnetMode ? 'BondingsCoreTest' : 'BondingsCore'
+const bondingContractName = testnetMode ? 'BondingsCoreTest' : 'BondingsCore'
+const bonxNFTContractName = testnetMode ? 'BONXTest' : 'BONX'
 
 function connectbondingsCore(bondingsCore: Contract, signer: Signer) {
   return bondingsCore.connect(signer) as BondingsCore
@@ -30,12 +31,12 @@ describe("test the functions related to assets management", function () {
 
     // Deploy contracts
     const mockUSDT = await ethers.deployContract('MockUSDT')
-    const bonxNFTFactory = await ethers.getContractFactory('BONX')
+    const bonxNFTFactory = await ethers.getContractFactory(bonxNFTContractName)
     const bonxNFT = await upgrades.deployProxy(
-      bonxNFTFactory, [await mockUSDT.getAddress()]
+      bonxNFTFactory, [signer.address, await mockUSDT.getAddress()]
     )
 
-    const bondingsCoreFactory = await ethers.getContractFactory(contractName)
+    const bondingsCoreFactory = await ethers.getContractFactory(bondingContractName)
     const bondingsCore = await upgrades.deployProxy(
       bondingsCoreFactory, [signer.address, await mockUSDT.getAddress()]
     )

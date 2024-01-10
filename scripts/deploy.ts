@@ -11,8 +11,10 @@ async function main() {
   // const mUSDT = await deployMockUSDT()
   // console.log("\x1b[0mMockUSDT deployed to:\x1b[32m", await mUSDT.getAddress())
 
-  // const bonxNFT = await deployBONX(mUSDSTAddress)
-  // console.log("\x1b[0mBONX deployed to:\x1b[32m", await bonxNFT.getAddress())
+  const bonxNFT = await deployBONX(
+    adminAddress, mUSDSTAddress, testMode
+  )
+  console.log("\x1b[0mBONX deployed to:\x1b[32m", await bonxNFT.getAddress())
 
   const bondingsCore = await deployBondingsCore(
     adminAddress, mUSDSTAddress, testMode
@@ -24,10 +26,11 @@ async function deployMockUSDT() {
   return (await ethers.deployContract("MockUSDT")) as MockUSDT
 }
 
-async function deployBONX(tokenAddress: string) {
-  const bonxNFTFactory = await ethers.getContractFactory('BONX')
+async function deployBONX(backendSigner: string, tokenAddress: string, testMode: boolean) {
+  const bonxNFTContractName = testMode ? "BONXTest" : "BONX"
+  const bonxNFTFactory = await ethers.getContractFactory(bonxNFTContractName)
   const bonxNFT = await upgrades.deployProxy(
-    bonxNFTFactory, [tokenAddress]
+    bonxNFTFactory, [backendSigner, tokenAddress]
   )
   return (bonxNFT as unknown as BONX)
 }
