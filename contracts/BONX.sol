@@ -33,6 +33,11 @@ contract BONX is ERC721Upgradeable, OwnableUpgradeable {
         backendSigner = backendSigner_;
         signatureValidTime = 3 minutes;
     }
+
+    modifier onlySigner() {
+        require(_msgSender() == backendSigner, "Only signer can call this function!");
+        _;
+    }
     
     /* ============================ Signature =========================== */
     function disableSignatureMode() public virtual pure returns (bool) {
@@ -63,7 +68,7 @@ contract BONX is ERC721Upgradeable, OwnableUpgradeable {
     }
 
     /* ========================= View functions ========================= */
-    
+
     function getNextTokenId() public view returns (uint256) {
         return _nextTokenId;
     }
@@ -76,15 +81,15 @@ contract BONX is ERC721Upgradeable, OwnableUpgradeable {
     /* ========================= Write functions ======================== */
 
     /* ---------------- For Admin --------------- */
-    function safeMint(address to, string memory name) public onlyOwner returns (uint256) {
+    function safeMint(address to, string memory name) public onlySigner returns (uint256) {
         uint256 tokenId = _nextTokenId++;
         _bonxNames[tokenId] = name;
         _safeMint(to, tokenId);
         return tokenId;
     }
 
-    function retrieveNFT(uint256 tokenId) public onlyOwner {
-        _transfer(ownerOf(tokenId), owner(), tokenId);
+    function retrieveNFT(uint256 tokenId) public onlySigner {
+        _transfer(ownerOf(tokenId), backendSigner, tokenId);
     }
 
     function claimRenewalFunds() public onlyOwner {
