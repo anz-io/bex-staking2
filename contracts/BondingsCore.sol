@@ -45,11 +45,11 @@ contract BondingsCore is OwnableUpgradeable {
     event Registered(string bondingsName, address indexed user);
     event BuyBondings(
         string bondingsName, address indexed user, uint256 share, 
-        uint256 nextId, uint256 originCost, uint256 afterFeeCost, uint256 fee
+        uint256 lastId, uint256 originCost, uint256 afterFeeCost, uint256 fee
     );
     event SellBondings(
         string bondingsName, address indexed user, uint256 share, 
-        uint256 nextId, uint256 originReward, uint256 afterFeeReward, uint256 fee
+        uint256 lastId, uint256 originReward, uint256 afterFeeReward, uint256 fee
     );
     event TransferBondings(
         string bondingsName, address indexed from, address indexed to, uint256 share
@@ -81,14 +81,14 @@ contract BondingsCore is OwnableUpgradeable {
     }
 
     function bondingCurve(uint256 x) public virtual pure returns (uint256) {
-        return 10 * x * x;
+        return 1 * x * x;
     }
 
     function bondingSumExclusive(uint256 start, uint256 end) public virtual pure returns (uint256) {
         require(start < end, "Invalid range");
         uint256 endSum = (end - 1) * end * (2 * end - 1) / 6;
         uint256 startSum = start > 1 ? (start - 1) * start * (2 * start - 1) / 6 : 0;
-        return 10 * (endSum - startSum);
+        return 1 * (endSum - startSum);
     }
 
     /* ========================= View functions ========================= */
@@ -137,7 +137,7 @@ contract BondingsCore is OwnableUpgradeable {
 
         // Event
         emit Registered(name, _msgSender());
-        emit BuyBondings(name, _msgSender(), 1, 1, 0, 0, 0);
+        emit BuyBondings(name, _msgSender(), 1, 0, 0, 0, 0);
     }
 
 
@@ -180,7 +180,7 @@ contract BondingsCore is OwnableUpgradeable {
         userShare[name][user] += share;
 
         // Event
-        emit BuyBondings(name, user, share, bondingsTotalShare[name], cost, actualCost, fee);
+        emit BuyBondings(name, user, share, bondingsTotalShare[name]-1, cost, actualCost, fee);
     }
 
 
