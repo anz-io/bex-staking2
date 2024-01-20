@@ -14,6 +14,12 @@ const config: HardhatUserConfig = {
       // gas: "auto",
       // gasPrice: 150000000000, // 150Gwei
     },
+    testblast: {
+      url: process.env.BLAST_TEST_RPC,
+      accounts: [
+        process.env.PRIVATE_KEY_ADMIN!, 
+      ]
+    }
   }
 };
 

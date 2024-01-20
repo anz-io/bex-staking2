@@ -25,7 +25,7 @@ contract BondingsCore is OwnableUpgradeable {
     address public tokenAddress;
 
     /* ----------------- Storage ---------------- */
-    // Total fee collected for the protocol, owners and inviters
+    // [Deprecated!] Total fee collected for the protocol, owners and inviters
     uint256 public feeCollected;
 
     // bondings => [stage information for this bondings (0~3, 0 for not registered)]
@@ -39,6 +39,9 @@ contract BondingsCore is OwnableUpgradeable {
 
     // keccak256(signature) => [whether this signature is used]
     mapping(bytes32 => bool) public signatureIsUsed;
+    
+    /* ---------------- Treasury ---------------- */
+    address public treasuryAddress;
 
 
     /* ============================= Events ============================= */
@@ -58,7 +61,9 @@ contract BondingsCore is OwnableUpgradeable {
 
 
     /* =========================== Constructor ========================== */
-    function initialize(address backendSigner_, address tokenAddress_) public initializer {
+    function initialize(
+        address backendSigner_, address tokenAddress_, address treasuryAddress_
+    ) public initializer {
         __Ownable_init();
 
         restrictedSupply = 1000;
@@ -72,6 +77,7 @@ contract BondingsCore is OwnableUpgradeable {
         taxBasePoint = 300;
 
         tokenAddress = tokenAddress_;
+        treasuryAddress = treasuryAddress_;
     }
 
 
@@ -91,7 +97,6 @@ contract BondingsCore is OwnableUpgradeable {
         return 1 * (endSum - startSum);
     }
 
-    /* ========================= View functions ========================= */
 
     /* ========================= Write functions ======================== */
 
@@ -170,10 +175,11 @@ contract BondingsCore is OwnableUpgradeable {
         // Calculate fees and transfer tokens
         uint256 cost = bondingSumExclusive(totalShare, totalShare + share);
         uint256 fee = cost * taxBasePoint / 10000;
-        feeCollected += fee;
         uint256 actualCost = cost + fee;
         require(actualCost <= maxOutTokenAmount, "Total cost more than expected!");
         IERC20(tokenAddress).transferFrom(user, address(this), actualCost);
+        if (fee > 0)
+            IERC20(tokenAddress).transfer(treasuryAddress, fee);
         
         // Update storage
         bondingsTotalShare[name] += share;
@@ -208,10 +214,11 @@ contract BondingsCore is OwnableUpgradeable {
         // Calculate fees and transfer tokens
         uint256 reward = bondingSumExclusive(totalShare - share, totalShare);
         uint256 fee = reward * taxBasePoint / 10000;
-        feeCollected += fee;
         uint256 actualReward = reward - fee;
         require(actualReward >= minInTokenAmount, "Total reward less than expected!");
         IERC20(tokenAddress).transfer(user, actualReward);
+        if (fee > 0)
+            IERC20(tokenAddress).transfer(treasuryAddress, fee);
         
         // Update storage
         bondingsTotalShare[name] -= share;
@@ -248,14 +255,8 @@ contract BondingsCore is OwnableUpgradeable {
     // function startContest        [Off-chain!]
     // function endContest          [Off-chain!]
     // function retrieveOwnership   [Off-chain!]
+    // function claimFees           [Automatic!]
 
-    function claimFees() public onlyOwner {
-        uint256 feeCollected_ = feeCollected;
-        feeCollected = 0;
-        IERC20(tokenAddress).transfer(_msgSender(), feeCollected_);
-        emit ClaimFees(_msgSender(), feeCollected_);
-    }
-    
     function setRestrictedSupply(uint256 newRestrictedSupply) public onlyOwner {
         require(newRestrictedSupply <= maxSupply, "Restricted supply must be less than max supply!");
         require(newRestrictedSupply >= holdLimit, "Restricted supply must be greater than hold limit!");
@@ -278,13 +279,16 @@ contract BondingsCore is OwnableUpgradeable {
         maxSupply = newMaxSupply;
     }
 
-    function setBackendSigner(address newBackendSigner) public onlyOwner {
-        backendSigner = newBackendSigner;
-    }
-
     function setTaxBasePoint(uint256 newTaxBasePoint) public onlyOwner {
         require(newTaxBasePoint <= 10000, "Tax base point must be less than 10000!");
         taxBasePoint = newTaxBasePoint;
     }
 
+    function setBackendSigner(address newBackendSigner) public onlyOwner {
+        backendSigner = newBackendSigner;
+    }
+
+    function setTreasuryAddress(address newTreasuryAddress) public onlyOwner {
+        treasuryAddress = newTreasuryAddress;
+    }
 }

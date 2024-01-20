@@ -10,7 +10,7 @@ contract BONX is ERC721Upgradeable, OwnableUpgradeable {
 
     uint256 private _nextTokenId;
     address public tokenAddress;
-    uint256 public renewalFunds;
+    uint256 public renewalFunds;        // Deprecated!
 
     // nft token id => bonding name
     mapping(uint256 => string) private _bonxNames;
@@ -20,15 +20,18 @@ contract BONX is ERC721Upgradeable, OwnableUpgradeable {
 
     address public backendSigner;       // Signer for register a new bondings
     uint256 public signatureValidTime;  // Valid time for a signature
+    address public treasuryAddress;     // Address for receiving the renewal funds
 
     event Renewal(uint256 nftTokenId, uint256 usdtAmount);
-    event ClaimRenewalFunds(address indexed admin, uint256 usdtAmount);
 
-    function initialize(address backendSigner_, address tokenAddress_) initializer public {
+    function initialize(
+        address backendSigner_, address tokenAddress_, address treasuryAddress_
+    ) initializer public {
         _nextTokenId = 1;        // Skip 0 as tokenId
         __ERC721_init("BONX", "BONX NFT");
         __Ownable_init();
         tokenAddress = tokenAddress_;
+        treasuryAddress = treasuryAddress_;
 
         backendSigner = backendSigner_;
         signatureValidTime = 3 minutes;
@@ -92,15 +95,12 @@ contract BONX is ERC721Upgradeable, OwnableUpgradeable {
         _transfer(ownerOf(tokenId), backendSigner, tokenId);
     }
 
-    function claimRenewalFunds() public onlyOwner {
-        uint256 renewalFunds_ = renewalFunds;
-        renewalFunds = 0;
-        IERC20(tokenAddress).transfer(_msgSender(), renewalFunds_);
-        emit ClaimRenewalFunds(_msgSender(), renewalFunds_);
-    }
-
     function setBackendSigner(address newBackendSigner) public onlyOwner {
         backendSigner = newBackendSigner;
+    }
+
+    function setTreasuryAddress(address newTreasuryAddress) public onlyOwner {
+        treasuryAddress = newTreasuryAddress;
     }
 
     /* ---------------- For Owner --------------- */
@@ -116,8 +116,7 @@ contract BONX is ERC721Upgradeable, OwnableUpgradeable {
         );
 
         // Update storage, transfer token and emit event
-        renewalFunds += usdtAmount;
-        IERC20(tokenAddress).transferFrom(_msgSender(), address(this), usdtAmount);
+        IERC20(tokenAddress).transferFrom(_msgSender(), treasuryAddress, usdtAmount);
         emit Renewal(nftTokenId, usdtAmount);
     }
 
