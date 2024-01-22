@@ -6,6 +6,7 @@ abi
 artifacts
 cache
 contracts/artifacts
+flattened
 
 # for mac & vscode
 .ds_store
