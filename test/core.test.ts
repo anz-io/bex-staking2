@@ -1,5 +1,5 @@
 import { expect } from "chai"
-import { Contract, Signer } from "ethers"
+import { Contract, Signer, keccak256 } from "ethers"
 import { ethers, upgrades } from "hardhat"
 import { loadFixture, time } from "@nomicfoundation/hardhat-toolbox/network-helpers"
 import { BONX, BondingsCore } from "../typechain-types"
@@ -8,6 +8,11 @@ import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers"
 const testnetMode = false
 const bondingContractName = testnetMode ? 'BondingsCoreTest' : 'BondingsCore'
 const bonxNFTContractName = testnetMode ? 'BONXTest' : 'BONX'
+
+const SELECTOR = {
+  'deploy': '0x8580974c',
+  'renewal': '0xeafd9330'
+}
 
 function connectbondingsCore(bondingsCore: Contract, signer: Signer) {
   return bondingsCore.connect(signer) as BondingsCore
@@ -21,11 +26,22 @@ function nowTime() {
   return parseInt((Date.now() / 1000).toString())
 }
 
-async function signRegisterWithHardhat(name: string, user: string, signer: HardhatEthersSigner) {
+async function signDeployWithHardhat(name: string, user: string, signer: HardhatEthersSigner) {
   const time = nowTime()
   const messageHexstring = ethers.solidityPacked(
     ["bytes4", "string", "address", "uint256"],
-    ['0x8580974c', name, user, time]
+    [SELECTOR.deploy, name, user, time]
+  )
+  const messageBytes = ethers.getBytes(messageHexstring)
+  const signature = await signer.signMessage(messageBytes)
+  return { messageHexstring, signature, time }
+}
+
+async function signRenewalWithHardhat(amount: string, user: string, signer: HardhatEthersSigner) {
+  const time = nowTime()
+  const messageHexstring = ethers.solidityPacked(
+    ["bytes4", "uint256", "address", "uint256"],
+    [SELECTOR.renewal, amount, user, time]
   )
   const messageBytes = ethers.getBytes(messageHexstring)
   const signature = await signer.signMessage(messageBytes)
@@ -80,8 +96,8 @@ describe("test the functions related to assets management", function () {
 
     // Carol register a new bonx "hello"
     const name = 'hello'
-    await bondingsCoreCarol.register(
-      name, nowTime(), (await signRegisterWithHardhat(name, carol.address, signer)).signature
+    await bondingsCoreCarol.deploy(
+      name, nowTime(), (await signDeployWithHardhat(name, carol.address, signer)).signature
     )
 
     // Carol buy 10 bondings, David buy 5 bondings
@@ -124,8 +140,8 @@ describe("test the functions related to assets management", function () {
 
     // Carol register a new bonx "hello"
     const name = 'hello'
-    await bondingsCoreCarol.register(
-      name, nowTime(), (await signRegisterWithHardhat(name, carol.address, signer)).signature
+    await bondingsCoreCarol.deploy(
+      name, nowTime(), (await signDeployWithHardhat(name, carol.address, signer)).signature
     )
 
     // Carol buy 50 bonding and sell 10
@@ -146,7 +162,7 @@ describe("test the functions related to assets management", function () {
     // Change mint limit and hold limit
     await bondingsCoreAdmin.setHoldLimit(100)
     await bondingsCoreAdmin.setMintLimit(100)
-    await bondingsCoreAdmin.setRestrictedSupply(100)
+    await bondingsCoreAdmin.setFairLaunchSupply(100)
 
     // Change max supply
     await bondingsCoreAdmin.setMaxSupply(610)
@@ -170,6 +186,23 @@ describe("test the functions related to assets management", function () {
     // Carol transfer 100 bonding to David
     await bondingsCoreCarol.transferBondings(name, david.address, 100)
     expect(await bondingsCoreCarol.userShare(name, carol.address)).to.equal('440')
+  })
+
+  it("should renewal successfully", async function() {
+    const {
+      admin, carol, david, signer, treasury, bondingsCore, mockUSDT, bonxNFT
+    } = await loadFixture(deployAssets)
+
+    const bonxNFTCarol = connectBonxNFT(bonxNFT, carol)
+    const bonxNFTSigner = connectBonxNFT(bonxNFT, signer)
+
+    const name = "test233"
+
+    await bonxNFTSigner.safeMint(carol.address, name)
+    await mockUSDT.connect(carol).approve(await bonxNFT.getAddress(), 5000)
+    await bonxNFTCarol.renewal(
+      1, 5000, nowTime(), (await signRenewalWithHardhat("5000", carol.address, signer)).signature
+    )
   })
 
 })

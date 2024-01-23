@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/interfaces/IERC20.sol";
@@ -9,26 +9,24 @@ contract BondingsCore is OwnableUpgradeable {
 
     /* ============================ Variables =========================== */
     /* ----------------- Supply ----------------- */
-    uint256 public restrictedSupply;    // Supply for stage 1 <-> stage 2, inclusive for stage 1
+    uint256 public fairLaunchSupply;    // Max supply for stage 1, inclusive for stage 1
     uint256 public mintLimit;           // Mint limit in stage 1
     uint256 public holdLimit;           // Hold limit in stage 1
-    uint256 public maxSupply;           // Supply for stage 2 --> stage 3
+    uint256 public maxSupply;           // Max supply for bondings
 
     /* ---------------- Signature --------------- */
-    address public backendSigner;       // Signer for register a new bondings
+    address public backendSigner;       // Signer for deploy a new bondings
     uint256 public signatureValidTime;  // Valid time for a signature
 
     /* ------------------- Tax ------------------ */
-    uint256 public taxBasePoint;        // Tax base point (default 3% = 300)
+    uint256 public protocolFeePercent;  // Default: 300 (3%)
+    address public protocolFeeDestination;
 
     /* ----------------- Address ---------------- */
-    address public tokenAddress;
+    address public unitTokenAddress;
 
     /* ----------------- Storage ---------------- */
-    // [Deprecated!] Total fee collected for the protocol, owners and inviters
-    uint256 public feeCollected;
-
-    // bondings => [stage information for this bondings (0~3, 0 for not registered)]
+    // bondings => [stage information for this bondings (0~3, 0 for not deployed)]
     mapping(string => uint8) public bondingsStage;
 
     // bondings => [total share num of the bondings]
@@ -40,61 +38,74 @@ contract BondingsCore is OwnableUpgradeable {
     // keccak256(signature) => [whether this signature is used]
     mapping(bytes32 => bool) public signatureIsUsed;
     
-    /* ---------------- Treasury ---------------- */
-    address public treasuryAddress;
-
 
     /* ============================= Events ============================= */
-    event Registered(string bondingsName, address indexed user);
+    event Deployed(string bondingsName, address indexed user);
     event BuyBondings(
-        string bondingsName, address indexed user, uint256 share, 
-        uint256 lastId, uint256 originCost, uint256 afterFeeCost, uint256 fee
+        string bondingsName, address indexed user, uint256 share, uint256 lastId, 
+        uint256 buyPrice, uint256 buyPriceAfterFee, uint256 fee
     );
     event SellBondings(
-        string bondingsName, address indexed user, uint256 share, 
-        uint256 lastId, uint256 originReward, uint256 afterFeeReward, uint256 fee
+        string bondingsName, address indexed user, uint256 share, uint256 lastId, 
+        uint256 sellPrice, uint256 sellPriceAfterFee, uint256 fee
     );
     event TransferBondings(
         string bondingsName, address indexed from, address indexed to, uint256 share
     );
-    event ClaimFees(address indexed admin, uint256 amount);
 
 
     /* =========================== Constructor ========================== */
     function initialize(
-        address backendSigner_, address tokenAddress_, address treasuryAddress_
+        address backendSigner_, address unitTokenAddress_, address protocolFeeDestination_
     ) public initializer {
         __Ownable_init();
 
-        restrictedSupply = 1000;
+        fairLaunchSupply = 1000;
         mintLimit = 10;
         holdLimit = 50;
-        maxSupply = 15000;
+        maxSupply = 1000000000;
 
         backendSigner = backendSigner_;
         signatureValidTime = 3 minutes;
 
-        taxBasePoint = 300;
+        protocolFeePercent = 300;
+        protocolFeeDestination = protocolFeeDestination_;
 
-        tokenAddress = tokenAddress_;
-        treasuryAddress = treasuryAddress_;
+        unitTokenAddress = unitTokenAddress_;
     }
 
 
-    /* ========================= Pure functions ========================= */
+    /* ====================== Pure / View functions ===================== */
     function disableSignatureMode() public virtual pure returns (bool) {
         return false;       // Override this for debugging in the testnet
     }
 
-    function bondingCurve(uint256 x) public virtual pure returns (uint256) {
-        return 1 * x * x;
+    function getPrice(uint256 supply, uint256 amount) public pure returns (uint256) {
+        uint256 sum1 = supply == 0 ? 0 : (supply - 1 ) * (supply) * (2 * (supply - 1) + 1) / 6;
+        uint256 sum2 = (supply == 0 && amount == 1) ? 0 : 
+            (supply + amount - 1) * (supply + amount) * (2 * (supply + amount - 1) + 1) / 6;
+        uint256 summation = sum2 - sum1;
+        return summation;
     }
 
-    function bondingSumExclusive(uint256 start, uint256 end) public virtual pure returns (uint256) {
-        require(start < end, "Invalid range");
-        uint256 endSum = (end - 1) * end * (2 * end - 1) / 6;
-        uint256 startSum = start > 1 ? (start - 1) * start * (2 * start - 1) / 6 : 0;
-        return 1 * (endSum - startSum);
+    function getBuyPrice(string memory name, uint256 amount) public view returns (uint256) {
+        return getPrice(bondingsTotalShare[name], amount);
+    }
+
+    function getSellPrice(string memory name, uint256 amount) public view returns (uint256) {
+        return getPrice(bondingsTotalShare[name] - amount, amount);
+    }
+
+    function getBuyPriceAfterFee(string memory name, uint256 amount) public view returns (uint256) {
+        uint256 price = getBuyPrice(name, amount);
+        uint256 fee = price * protocolFeePercent / 10000;
+        return price + fee;
+    }
+
+    function getSellPriceAfterFee(string memory name, uint256 amount) public view returns (uint256) {
+        uint256 price = getSellPrice(name, amount);
+        uint256 fee = price * protocolFeePercent / 10000;
+        return price - fee;
     }
 
 
@@ -125,23 +136,23 @@ contract BondingsCore is OwnableUpgradeable {
     }
 
     /* ---------------- For User ---------------- */
-    function register(
+    function deploy(
         string memory name,
         uint256 timestamp,
         bytes memory signature
     ) public {
         // Check signature
         consumeSignature(
-            this.register.selector, name, _msgSender(), timestamp, signature
+            0x8580974c, name, _msgSender(), timestamp, signature
         );
 
-        // Register the Bondings
+        // Deploy the Bondings
         bondingsStage[name] = 1;
         bondingsTotalShare[name] = 1;
         userShare[name][_msgSender()] = 1;
 
         // Event
-        emit Registered(name, _msgSender());
+        emit Deployed(name, _msgSender());
         emit BuyBondings(name, _msgSender(), 1, 0, 0, 0, 0);
     }
 
@@ -158,14 +169,14 @@ contract BondingsCore is OwnableUpgradeable {
 
         // Check requirements
         require(share > 0, "Share must be greater than 0!");
-        require(stage != 0, "Bondings not registered!");
+        require(stage != 0, "Bondings not deployed!");
         require(totalShare + share <= maxSupply, "Exceed max supply!");
 
         // Stage transition
         if (stage == 1) {
             require(share <= mintLimit, "Exceed mint limit in stage 1!");
             require(userShare[name][user] + share <= holdLimit, "Exceed hold limit in stage 1!");
-            if (totalShare + share > restrictedSupply) 
+            if (totalShare + share > fairLaunchSupply) 
                 bondingsStage[name] = 2;           // Stage transition: 1 -> 2
         } else if (stage == 2) {
             if (totalShare + share == maxSupply)
@@ -173,20 +184,23 @@ contract BondingsCore is OwnableUpgradeable {
         }
 
         // Calculate fees and transfer tokens
-        uint256 cost = bondingSumExclusive(totalShare, totalShare + share);
-        uint256 fee = cost * taxBasePoint / 10000;
-        uint256 actualCost = cost + fee;
-        require(actualCost <= maxOutTokenAmount, "Total cost more than expected!");
-        IERC20(tokenAddress).transferFrom(user, address(this), actualCost);
+        uint256 price = getBuyPrice(name, share);
+        uint256 fee = price * protocolFeePercent / 10000;
+        uint256 priceAfterFee = price + fee;
+        require(priceAfterFee <= maxOutTokenAmount, "Total price more than expected!");
+        IERC20(unitTokenAddress).transferFrom(user, address(this), priceAfterFee);
         if (fee > 0)
-            IERC20(tokenAddress).transfer(treasuryAddress, fee);
+            IERC20(unitTokenAddress).transfer(protocolFeeDestination, fee);
         
         // Update storage
         bondingsTotalShare[name] += share;
         userShare[name][user] += share;
 
         // Event
-        emit BuyBondings(name, user, share, bondingsTotalShare[name]-1, cost, actualCost, fee);
+        emit BuyBondings(
+            name, user, share, bondingsTotalShare[name]-1, 
+            price, priceAfterFee, fee
+        );
     }
 
 
@@ -202,30 +216,33 @@ contract BondingsCore is OwnableUpgradeable {
 
         // Check stage and share num
         require(share > 0, "Share must be greater than 0!");
-        require(stage != 0, "Bondings not registered!");
-        require(userShare[name][user] >= share, "Not enough share for the seller!");
+        require(stage != 0, "Bondings not deployed!");
+        require(userShare[name][user] >= share, "Insufficient shares!");
 
         // Stage transition
         if (stage == 2) {
-            if (totalShare - share <= restrictedSupply)
+            if (totalShare - share <= fairLaunchSupply)
                 bondingsStage[name] = 1;           // Stage transition: 2 -> 1
         }
 
         // Calculate fees and transfer tokens
-        uint256 reward = bondingSumExclusive(totalShare - share, totalShare);
-        uint256 fee = reward * taxBasePoint / 10000;
-        uint256 actualReward = reward - fee;
-        require(actualReward >= minInTokenAmount, "Total reward less than expected!");
-        IERC20(tokenAddress).transfer(user, actualReward);
+        uint256 price = getSellPrice(name, share);
+        uint256 fee = price * protocolFeePercent / 10000;
+        uint256 priceAfterFee = price - fee;
+        require(priceAfterFee >= minInTokenAmount, "Total price less than expected!");
+        IERC20(unitTokenAddress).transfer(user, priceAfterFee);
         if (fee > 0)
-            IERC20(tokenAddress).transfer(treasuryAddress, fee);
+            IERC20(unitTokenAddress).transfer(protocolFeeDestination, fee);
         
         // Update storage
         bondingsTotalShare[name] -= share;
         userShare[name][user] -= share;
         
         // Event
-        emit SellBondings(name, user, share, bondingsTotalShare[name], reward, actualReward, fee);
+        emit SellBondings(
+            name, user, share, bondingsTotalShare[name], 
+            price, priceAfterFee, fee
+        );
     }
 
 
@@ -240,7 +257,7 @@ contract BondingsCore is OwnableUpgradeable {
 
         // Check stage and share num
         require(stage == 3, "Transfer is only allowed in stage 3!");
-        require(userShare[name][user] >= share, "Not enough share for transfer!");
+        require(userShare[name][user] >= share, "Insufficient shares!");
 
         // Update storage
         userShare[name][user] -= share;
@@ -254,13 +271,12 @@ contract BondingsCore is OwnableUpgradeable {
     /* ---------------- For Admin --------------- */
     // function startContest        [Off-chain!]
     // function endContest          [Off-chain!]
-    // function retrieveOwnership   [Off-chain!]
     // function claimFees           [Automatic!]
 
-    function setRestrictedSupply(uint256 newRestrictedSupply) public onlyOwner {
-        require(newRestrictedSupply <= maxSupply, "Restricted supply must be less than max supply!");
-        require(newRestrictedSupply >= holdLimit, "Restricted supply must be greater than hold limit!");
-        restrictedSupply = newRestrictedSupply;
+    function setFairLaunchSupply(uint256 newFairLaunchSupply) public onlyOwner {
+        require(newFairLaunchSupply <= maxSupply, "Restricted supply must be less than max supply!");
+        require(newFairLaunchSupply >= holdLimit, "Restricted supply must be greater than hold limit!");
+        fairLaunchSupply = newFairLaunchSupply;
     }
 
     function setMintLimit(uint256 newMintLimit) public onlyOwner {
@@ -270,25 +286,25 @@ contract BondingsCore is OwnableUpgradeable {
 
     function setHoldLimit(uint256 newHoldLimit) public onlyOwner {
         require(newHoldLimit >= mintLimit, "Hold limit must be greater than mint limit!");
-        require(newHoldLimit <= restrictedSupply, "Hold limit must be less than restricted supply!");
+        require(newHoldLimit <= fairLaunchSupply, "Hold limit must be less than restricted supply!");
         holdLimit = newHoldLimit;
     }
 
     function setMaxSupply(uint256 newMaxSupply) public onlyOwner {
-        require(newMaxSupply >= restrictedSupply, "Max supply must be greater than restricted supply!");
+        require(newMaxSupply >= fairLaunchSupply, "Max supply must be greater than restricted supply!");
         maxSupply = newMaxSupply;
     }
 
-    function setTaxBasePoint(uint256 newTaxBasePoint) public onlyOwner {
-        require(newTaxBasePoint <= 10000, "Tax base point must be less than 10000!");
-        taxBasePoint = newTaxBasePoint;
+    function setProtocolFeePercent(uint256 newProtocolFeePercent) public onlyOwner {
+        require(newProtocolFeePercent <= 10000, "Tax base point must be less than 10000!");
+        protocolFeePercent = newProtocolFeePercent;
     }
 
     function setBackendSigner(address newBackendSigner) public onlyOwner {
         backendSigner = newBackendSigner;
     }
 
-    function setTreasuryAddress(address newTreasuryAddress) public onlyOwner {
-        treasuryAddress = newTreasuryAddress;
+    function setProtocolFeeDestination(address newProtocolFeeDestination) public onlyOwner {
+        protocolFeeDestination = newProtocolFeeDestination;
     }
 }
