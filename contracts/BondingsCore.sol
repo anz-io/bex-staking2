@@ -9,17 +9,17 @@ contract BondingsCore is OwnableUpgradeable {
 
     /* ============================ Variables =========================== */
     /* ----------------- Supply ----------------- */
-    uint256 public fairLaunchSupply;    // Max supply for stage 1, inclusive for stage 1
+    uint256 public fairLaunchSupply;    // Max supply for stage 1
     uint256 public mintLimit;           // Mint limit in stage 1
     uint256 public holdLimit;           // Hold limit in stage 1
     uint256 public maxSupply;           // Max supply for bondings
 
     /* ---------------- Signature --------------- */
-    address public backendSigner;       // Signer for deploy a new bondings
+    address public backendSigner;       // Signer for deploy new bondings
     uint256 public signatureValidTime;  // Valid time for a signature
 
     /* ------------------- Tax ------------------ */
-    uint256 public protocolFeePercent;  // Default: 300 (3%)
+    uint256 public protocolFeePercent;
     address public protocolFeeDestination;
 
     /* ----------------- Address ---------------- */
@@ -30,7 +30,7 @@ contract BondingsCore is OwnableUpgradeable {
     mapping(string => uint8) public bondingsStage;
 
     // bondings => [total share num of the bondings]
-    mapping(string => uint256) public bondingsTotalShare;
+    mapping(string => uint256) private bondingsTotalShare;
 
     // bondings => user => [user's share num of this bondings]
     mapping(string => mapping(address => uint256)) public userShare;
@@ -108,6 +108,11 @@ contract BondingsCore is OwnableUpgradeable {
         return price - fee;
     }
 
+    function getBondingsTotalShare(string memory name) public view returns (uint256) {
+        require(bondingsStage[name] != 0, "Bondings not deployed!");
+        return bondingsTotalShare[name] - 1;
+    }
+
 
     /* ========================= Write functions ======================== */
 
@@ -149,11 +154,9 @@ contract BondingsCore is OwnableUpgradeable {
         // Deploy the Bondings
         bondingsStage[name] = 1;
         bondingsTotalShare[name] = 1;
-        userShare[name][_msgSender()] = 1;
 
         // Event
         emit Deployed(name, _msgSender());
-        emit BuyBondings(name, _msgSender(), 1, 0, 0, 0, 0);
     }
 
 
@@ -187,7 +190,7 @@ contract BondingsCore is OwnableUpgradeable {
         uint256 price = getBuyPrice(name, share);
         uint256 fee = price * protocolFeePercent / 10000;
         uint256 priceAfterFee = price + fee;
-        require(priceAfterFee <= maxOutTokenAmount, "Total price more than expected!");
+        require(priceAfterFee <= maxOutTokenAmount, "Slippage exceeded!");
         IERC20(unitTokenAddress).transferFrom(user, address(this), priceAfterFee);
         if (fee > 0)
             IERC20(unitTokenAddress).transfer(protocolFeeDestination, fee);
@@ -198,7 +201,7 @@ contract BondingsCore is OwnableUpgradeable {
 
         // Event
         emit BuyBondings(
-            name, user, share, bondingsTotalShare[name]-1, 
+            name, user, share, bondingsTotalShare[name] - 1, 
             price, priceAfterFee, fee
         );
     }
@@ -229,7 +232,7 @@ contract BondingsCore is OwnableUpgradeable {
         uint256 price = getSellPrice(name, share);
         uint256 fee = price * protocolFeePercent / 10000;
         uint256 priceAfterFee = price - fee;
-        require(priceAfterFee >= minInTokenAmount, "Total price less than expected!");
+        require(priceAfterFee >= minInTokenAmount, "Slippage exceeded!");
         IERC20(unitTokenAddress).transfer(user, priceAfterFee);
         if (fee > 0)
             IERC20(unitTokenAddress).transfer(protocolFeeDestination, fee);

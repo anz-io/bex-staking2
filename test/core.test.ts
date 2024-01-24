@@ -173,19 +173,19 @@ describe("test the functions related to assets management", function () {
     await bondingsCoreDavid.buyBondings(name, 70, 500000)      // expected total: 417095 * 1.03
     expect(await mockUSDT.balanceOf(david.address)).to.equal
       ('39999570393')    // 40000_000000 - 429607(.85) = 39999570393
-    expect(await bondingsCoreDavid.bondingsTotalShare(name)).to.equal('110')
+    expect(await bondingsCoreDavid.getBondingsTotalShare(name)).to.equal('109')
 
     // Carol buy 500 bonding, and reach the max supply
     await bondingsCoreCarol.buyBondings(name, 500, 80_000000)  // expected total: 75036750 * 1.03
     expect(await mockUSDT.balanceOf(carol.address)).to.equal
       ('39922689802')    // 39999_977654 - 77_287852(+.5) = 39922689802
-    expect(await bondingsCoreCarol.bondingsTotalShare(name)).to.equal('610')
+    expect(await bondingsCoreCarol.getBondingsTotalShare(name)).to.equal('609')
     expect(await bondingsCoreCarol.bondingsStage(name)).to.equal(3)
-    expect(await bondingsCoreCarol.userShare(name, carol.address)).to.equal('540')
+    expect(await bondingsCoreCarol.userShare(name, carol.address)).to.equal('539')
 
     // Carol transfer 100 bonding to David
     await bondingsCoreCarol.transferBondings(name, david.address, 100)
-    expect(await bondingsCoreCarol.userShare(name, carol.address)).to.equal('440')
+    expect(await bondingsCoreCarol.userShare(name, carol.address)).to.equal('439')
   })
 
   it("should renewal successfully", async function() {
