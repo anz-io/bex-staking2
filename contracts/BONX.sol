@@ -8,9 +8,13 @@ import "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 
 contract BONX is ERC721Upgradeable, OwnableUpgradeable {
 
+    /* ===================== Variables & Constructor ==================== */
+
     uint256 private _nextTokenId;
-    address public tokenAddress;
-    uint256 public renewalFunds;        // Deprecated!
+    address public unitTokenAddress;
+    address public backendSigner;           // Signer for renewal funds
+    uint256 public signatureValidTime;      // Valid time for a signature
+    address public renewalDestination;      // Address for receiving the renewal funds
 
     // nft token id => bonding name
     mapping(uint256 => string) private _bonxNames;
@@ -18,23 +22,19 @@ contract BONX is ERC721Upgradeable, OwnableUpgradeable {
     // keccak256(signature) => [whether this signature is used]
     mapping(bytes32 => bool) public signatureIsUsed;
 
-    address public backendSigner;       // Signer for register a new bondings
-    uint256 public signatureValidTime;  // Valid time for a signature
-    address public treasuryAddress;     // Address for receiving the renewal funds
-
     event Renewal(uint256 nftTokenId, uint256 usdtAmount);
 
     function initialize(
-        address backendSigner_, address tokenAddress_, address treasuryAddress_
+        address backendSigner_, address unitTokenAddress_, address renewalDestination_
     ) initializer public {
-        _nextTokenId = 1;        // Skip 0 as tokenId
         __ERC721_init("BONX", "BONX NFT");
         __Ownable_init();
-        tokenAddress = tokenAddress_;
-        treasuryAddress = treasuryAddress_;
 
+        _nextTokenId = 1;        // Skip 0 as tokenId
+        unitTokenAddress = unitTokenAddress_;
         backendSigner = backendSigner_;
         signatureValidTime = 3 minutes;
+        renewalDestination = renewalDestination_;
     }
 
     modifier onlySigner() {
@@ -70,8 +70,8 @@ contract BONX is ERC721Upgradeable, OwnableUpgradeable {
         require(signer == backendSigner || disableSignatureMode(), "Signature invalid!");
     }
 
-    /* ========================= View functions ========================= */
 
+    /* ========================= View functions ========================= */
     function getNextTokenId() public view returns (uint256) {
         return _nextTokenId;
     }
@@ -83,7 +83,7 @@ contract BONX is ERC721Upgradeable, OwnableUpgradeable {
 
     /* ========================= Write functions ======================== */
 
-    /* ---------------- For Admin --------------- */
+    /* ----------- For Backend Signer ----------- */
     function safeMint(address to, string memory name) public onlySigner returns (uint256) {
         uint256 tokenId = _nextTokenId++;
         _bonxNames[tokenId] = name;
@@ -95,12 +95,13 @@ contract BONX is ERC721Upgradeable, OwnableUpgradeable {
         _transfer(ownerOf(tokenId), backendSigner, tokenId);
     }
 
+    /* ---------------- For Admin --------------- */
     function setBackendSigner(address newBackendSigner) public onlyOwner {
         backendSigner = newBackendSigner;
     }
 
-    function setTreasuryAddress(address newTreasuryAddress) public onlyOwner {
-        treasuryAddress = newTreasuryAddress;
+    function setRenewalDestination(address newRenewalDestination) public onlyOwner {
+        renewalDestination = newRenewalDestination;
     }
 
     /* ---------------- For Owner --------------- */
@@ -116,7 +117,7 @@ contract BONX is ERC721Upgradeable, OwnableUpgradeable {
         );
 
         // Update storage, transfer token and emit event
-        IERC20(tokenAddress).transferFrom(_msgSender(), treasuryAddress, usdtAmount);
+        IERC20(unitTokenAddress).transferFrom(_msgSender(), renewalDestination, usdtAmount);
         emit Renewal(nftTokenId, usdtAmount);
     }
 

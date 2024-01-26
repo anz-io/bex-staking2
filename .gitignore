@@ -19,6 +19,3 @@ typechain-types
 
 # others
 outputabi.py
-
-# for test on remix
-contracts/interface
