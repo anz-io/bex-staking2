@@ -4,7 +4,7 @@ import "@openzeppelin/hardhat-upgrades";
 import "dotenv/config";
 
 const config: HardhatUserConfig = {
-  solidity: "0.8.18",
+  solidity: "0.8.20",
   etherscan: {
     apiKey: {
       blast_sepolia: "blast_sepolia", // apiKey is not required, just set a placeholder
