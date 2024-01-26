@@ -1,30 +1,30 @@
 import { ethers, upgrades } from "hardhat"
 import "dotenv/config"
-import { BONX, BondingsCore, MockUSDT } from "../typechain-types"
+import { BONX, BondingsCore, MockUSDB } from "../typechain-types"
 
 async function main() {
   const testMode = true
   
   const adminAddress = process.env.ADDRESS_ADMIN!
-  const mUSDTAddress = process.env.POLYGON_MOCK_USDT!
+  const mUSDBAddress = process.env.BLAST_MOCK_USDB!
   const protocolFeeDestination = process.env.ADDRESS_FEE_DESTINATION!
 
-  // const mUSDT = await deployMockUSDT()
-  // console.log("\x1b[0mMockUSDT deployed to:\x1b[32m", await mUSDT.getAddress())
+  // const mUSDB = await deployMockUSDB()
+  // console.log("\x1b[0mBondings Mock USDB deployed to:\x1b[32m", await mUSDB.getAddress())
 
   const bonxNFT = await deployBONX(
-    adminAddress, mUSDTAddress, protocolFeeDestination, testMode
+    adminAddress, mUSDBAddress, protocolFeeDestination, testMode
   )
   console.log("\x1b[0mBONX deployed to:\x1b[32m", await bonxNFT.getAddress())
 
   const bondingsCore = await deployBondingsCore(
-    adminAddress, mUSDTAddress, protocolFeeDestination, testMode
+    adminAddress, mUSDBAddress, protocolFeeDestination, testMode
   )
   console.log("\x1b[0mBondingsCore deployed to:\x1b[32m", await bondingsCore.getAddress())
 }
 
-async function deployMockUSDT() {
-  return (await ethers.deployContract("MockUSDT")) as MockUSDT
+async function deployMockUSDB() {
+  return (await ethers.deployContract("MockUSDB")) as MockUSDB
 }
 
 async function deployBONX(backendSigner: string, tokenAddress: string, protocolFeeDestination: string, testMode: boolean) {
