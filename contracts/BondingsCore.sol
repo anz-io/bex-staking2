@@ -163,7 +163,7 @@ contract BondingsCore is OwnableUpgradeable {
     function buyBondings(
         string memory name, 
         uint256 share, 
-        uint256 maxOutTokenAmount
+        uint256 maxPayTokenAmount
     ) public {
         // Local variables
         address user = _msgSender();
@@ -190,7 +190,7 @@ contract BondingsCore is OwnableUpgradeable {
         uint256 price = getBuyPrice(name, share);
         uint256 fee = price * protocolFeePercent / 10000;
         uint256 priceAfterFee = price + fee;
-        require(priceAfterFee <= maxOutTokenAmount, "Slippage exceeded!");
+        require(priceAfterFee <= maxPayTokenAmount, "Slippage exceeded!");
         IERC20(unitTokenAddress).transferFrom(user, address(this), priceAfterFee);
         if (fee > 0)
             IERC20(unitTokenAddress).transfer(protocolFeeDestination, fee);
@@ -210,7 +210,7 @@ contract BondingsCore is OwnableUpgradeable {
     function sellBondings(
         string memory name, 
         uint256 share, 
-        uint256 minInTokenAmount
+        uint256 minGetTokenAmount
     ) public {
         // Local variables
         address user = _msgSender();
@@ -232,7 +232,7 @@ contract BondingsCore is OwnableUpgradeable {
         uint256 price = getSellPrice(name, share);
         uint256 fee = price * protocolFeePercent / 10000;
         uint256 priceAfterFee = price - fee;
-        require(priceAfterFee >= minInTokenAmount, "Slippage exceeded!");
+        require(priceAfterFee >= minGetTokenAmount, "Slippage exceeded!");
         IERC20(unitTokenAddress).transfer(user, priceAfterFee);
         if (fee > 0)
             IERC20(unitTokenAddress).transfer(protocolFeeDestination, fee);
@@ -272,13 +272,9 @@ contract BondingsCore is OwnableUpgradeable {
 
 
     /* ---------------- For Admin --------------- */
-    // function startContest        [Off-chain!]
-    // function endContest          [Off-chain!]
-    // function claimFees           [Automatic!]
-
     function setFairLaunchSupply(uint256 newFairLaunchSupply) public onlyOwner {
-        require(newFairLaunchSupply <= maxSupply, "Restricted supply must be less than max supply!");
-        require(newFairLaunchSupply >= holdLimit, "Restricted supply must be greater than hold limit!");
+        require(newFairLaunchSupply <= maxSupply, "Fair launch supply must be less than max supply!");
+        require(newFairLaunchSupply >= holdLimit, "Fair launch supply must be greater than hold limit!");
         fairLaunchSupply = newFairLaunchSupply;
     }
 
@@ -289,17 +285,17 @@ contract BondingsCore is OwnableUpgradeable {
 
     function setHoldLimit(uint256 newHoldLimit) public onlyOwner {
         require(newHoldLimit >= mintLimit, "Hold limit must be greater than mint limit!");
-        require(newHoldLimit <= fairLaunchSupply, "Hold limit must be less than restricted supply!");
+        require(newHoldLimit <= fairLaunchSupply, "Hold limit must be less than fair launch supply!");
         holdLimit = newHoldLimit;
     }
 
     function setMaxSupply(uint256 newMaxSupply) public onlyOwner {
-        require(newMaxSupply >= fairLaunchSupply, "Max supply must be greater than restricted supply!");
+        require(newMaxSupply >= fairLaunchSupply, "Max supply must be greater than fair launch supply!");
         maxSupply = newMaxSupply;
     }
 
     function setProtocolFeePercent(uint256 newProtocolFeePercent) public onlyOwner {
-        require(newProtocolFeePercent <= 10000, "Tax base point must be less than 10000!");
+        require(newProtocolFeePercent <= 10000, "Protocol fee percent must be less than 10000!");
         protocolFeePercent = newProtocolFeePercent;
     }
 
