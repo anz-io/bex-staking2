@@ -39,3 +39,7 @@ const config: HardhatUserConfig = {
 };
 
 export default config;
+
+// r = json.load(open('artifacts/build-info/45b22d3bce577f28d713c4db698357da.json'))
+// s = json.load(open('artifacts/build-info/compare.json'))
+// r['output']['contracts']['contracts/mock/MockUSDB.sol']['MockUSDB']['metadata'] = s['metadata']
