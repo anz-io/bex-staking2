@@ -1,6 +1,6 @@
 import { ethers, upgrades } from "hardhat"
 import "dotenv/config"
-import { BONX, BondingsCore, MockUSDB } from "../typechain-types"
+import { BONX, BondingsCore, MockUSDB } from "../../typechain-types"
 
 async function main() {
   const testMode = true

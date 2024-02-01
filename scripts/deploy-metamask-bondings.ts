@@ -5,7 +5,7 @@ import { MetamaskConnector } from "@web3camp/hardhat-metamask-connector";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 
 async function main() {
-  const testMode = true
+  const testMode = false
 
   const mUSDBAddress = process.env.BLAST_MOCK_USDB!
   const backendSignerAddress = process.env.BACKEND_SIGNER!
