@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/interfaces/IERC20.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 
@@ -28,7 +29,7 @@ contract BONX is ERC721Upgradeable, OwnableUpgradeable {
         address backendSigner_, address unitTokenAddress_, address renewalDestination_
     ) initializer public {
         __ERC721_init("BONX", "BONX NFT");
-        __Ownable_init();
+        __Ownable_init(msg.sender);
 
         _nextTokenId = 1;        // Skip 0 as tokenId
         unitTokenAddress = unitTokenAddress_;
@@ -65,7 +66,7 @@ contract BONX is ERC721Upgradeable, OwnableUpgradeable {
 
         // Check the signature content
         bytes memory data = abi.encodePacked(selector, amount, user, timestamp);
-        bytes32 signedMessageHash = ECDSA.toEthSignedMessageHash(data);
+        bytes32 signedMessageHash = MessageHashUtils.toEthSignedMessageHash(data);
         address signer = ECDSA.recover(signedMessageHash, signature);
         require(signer == backendSigner || disableSignatureMode(), "Signature invalid!");
     }

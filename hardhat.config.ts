@@ -4,7 +4,7 @@ import "@openzeppelin/hardhat-upgrades";
 import "dotenv/config";
 
 const config: HardhatUserConfig = {
-  solidity: "0.8.18",
+  solidity: "0.8.20",
   etherscan: {
     apiKey: {
       blast_sepolia: "blast_sepolia", // apiKey is not required, just set a placeholder
@@ -31,6 +31,7 @@ const config: HardhatUserConfig = {
     },
     blast_sepolia: {
       url: process.env.BLAST_TEST_RPC,
+      chainId: 168587773,
       accounts: [
         process.env.PRIVATE_KEY_ADMIN!, 
       ]
@@ -39,3 +40,7 @@ const config: HardhatUserConfig = {
 };
 
 export default config;
+
+// r = json.load(open('artifacts/build-info/45b22d3bce577f28d713c4db698357da.json'))
+// s = json.load(open('artifacts/build-info/compare.json'))
+// r['output']['contracts']['contracts/mock/MockUSDB.sol']['MockUSDB']['metadata'] = s['metadata']

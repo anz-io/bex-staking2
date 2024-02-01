@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/interfaces/IERC20.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 contract BondingsCore is OwnableUpgradeable {
@@ -58,7 +59,7 @@ contract BondingsCore is OwnableUpgradeable {
     function initialize(
         address backendSigner_, address unitTokenAddress_, address protocolFeeDestination_
     ) public initializer {
-        __Ownable_init();
+        __Ownable_init(msg.sender);
 
         fairLaunchSupply = 1000;
         mintLimit = 10;
@@ -135,7 +136,7 @@ contract BondingsCore is OwnableUpgradeable {
 
         // Check the signature content
         bytes memory data = abi.encodePacked(selector, name, user, timestamp);
-        bytes32 signedMessageHash = ECDSA.toEthSignedMessageHash(data);
+        bytes32 signedMessageHash = MessageHashUtils.toEthSignedMessageHash(data);
         address signer = ECDSA.recover(signedMessageHash, signature);
         require(signer == backendSigner || disableSignatureMode(), "Signature invalid!");
     }
