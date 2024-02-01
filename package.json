@@ -29,6 +29,7 @@
     "typescript": "^5.3.2"
   },
   "dependencies": {
+    "@web3camp/hardhat-metamask-connector": "^1.1.2",
     "dotenv": "^16.3.1"
   }
 }

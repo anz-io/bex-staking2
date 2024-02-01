@@ -31,6 +31,7 @@ const config: HardhatUserConfig = {
     },
     blast_sepolia: {
       url: process.env.BLAST_TEST_RPC,
+      chainId: 168587773,
       accounts: [
         process.env.PRIVATE_KEY_ADMIN!, 
       ]
