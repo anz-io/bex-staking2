@@ -14,8 +14,8 @@ async function main() {
   const adminAddress = await admin.getAddress();
 
   // For Bondings Core contract
-  console.log(`\x1b[0mUpgrading ${newBondingContractName} contract for: ' + 
-              '\x1b[32m${proxyBondingAddress}\x1b[0m`)
+  console.log(`\x1b[0mUpgrading ${newBondingContractName} contract for: ` + 
+              `\x1b[32m${proxyBondingAddress}\x1b[0m`)
   await upgradeContract(
     admin, proxyBondingAddress, newBondingContractName
   )
