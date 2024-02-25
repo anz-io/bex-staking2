@@ -188,6 +188,7 @@ describe("test the functions related to assets management", function () {
     expect(await bondingsCoreCarol.userShare(name, carol.address)).to.equal('439')
   })
 
+
   it("should renewal successfully", async function() {
     const {
       admin, carol, david, signer, treasury, bondingsCore, mockUSDT, bonxNFT
@@ -203,6 +204,18 @@ describe("test the functions related to assets management", function () {
     await bonxNFTCarol.renewal(
       1, 5000, nowTime(), (await signRenewalWithHardhat("5000", carol.address, signer)).signature
     )
+  })
+
+
+  it("should deploy the contract correctly on Blast", async function () {
+    const [admin, carol, david, signer, treasury] = await ethers.getSigners()
+
+    const mockUSDT = await ethers.deployContract('MockUSDT')
+    const bondingsCoreBlastFactory = await ethers.getContractFactory("BondingsCoreBlast")
+    const bondingsCoreBlast = await upgrades.deployProxy(
+      bondingsCoreBlastFactory, [signer.address, await mockUSDT.getAddress(), treasury.address]
+    )
+    const bondingsCorBlasteAddress = await bondingsCoreBlast.getAddress()
   })
 
 })

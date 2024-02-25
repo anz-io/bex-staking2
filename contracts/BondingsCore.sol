@@ -58,7 +58,7 @@ contract BondingsCore is OwnableUpgradeable {
     /* =========================== Constructor ========================== */
     function initialize(
         address backendSigner_, address unitTokenAddress_, address protocolFeeDestination_
-    ) public initializer {
+    ) public virtual initializer {
         __Ownable_init(msg.sender);
 
         fairLaunchSupply = 1000;
@@ -153,6 +153,7 @@ contract BondingsCore is OwnableUpgradeable {
         );
 
         // Deploy the Bondings
+        require(bondingsStage[name] == 0, "Bondings already deployed!");
         bondingsStage[name] = 1;
         bondingsTotalShare[name] = 1;
 

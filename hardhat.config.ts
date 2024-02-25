@@ -30,7 +30,8 @@ const config: HardhatUserConfig = {
       // gasPrice: 150000000000, // 150Gwei
     },
     blast_sepolia: {
-      url: process.env.BLAST_TEST_RPC,
+      // url: process.env.BLAST_TEST_RPC,
+      url: 'https://sepolia.blast.io',
       chainId: 168587773,
       accounts: [
         process.env.PRIVATE_KEY_ADMIN!, 
