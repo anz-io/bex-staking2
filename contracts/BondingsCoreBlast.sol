@@ -11,13 +11,15 @@ contract BondingsCoreBlast is BondingsCore {
      */
     address public constant BLAST_ETH = 0x4300000000000000000000000000000000000002;
     address public constant BLAST_USDB = 0x4200000000000000000000000000000000000022;
+    address public constant BLAST_POINT = 0x2fc95838c71e76ec69ff817983BFf17c710F34E0;
 
     function initialize(
-        address backendSigner_, address unitTokenAddress_, address protocolFeeDestination_
+        address backendSigner_, address pointsOperator_, address protocolFeeDestination_
     ) public override initializer {
-        super.initialize(backendSigner_, unitTokenAddress_, protocolFeeDestination_);
+        super.initialize(backendSigner_, BLAST_USDB, protocolFeeDestination_);
 		IBlast(BLAST_ETH).configureClaimableYield();
         IERC20Rebasing(BLAST_USDB).configure(YieldMode.CLAIMABLE);
+        IBlastPoints(BLAST_POINT).configurePointsOperator(pointsOperator_);
     }
 
     function claimAllYield(address yieldRecipient) public onlyOwner {

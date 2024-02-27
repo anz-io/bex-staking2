@@ -11,7 +11,6 @@ async function main() {
 
   const connector = new MetamaskConnector();
   const admin = await connector.getSigner();
-  const adminAddress = await admin.getAddress();
 
   // For Bondings Core contract
   console.log(`\x1b[0mUpgrading ${newBondingContractName} contract for: ` + 

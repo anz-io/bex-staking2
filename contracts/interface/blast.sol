@@ -57,3 +57,7 @@ interface IERC20Rebasing {
   function claim(address recipient, uint256 amount) external returns (uint256);
   function getClaimableAmount(address account) external view returns (uint256);
 }
+
+interface IBlastPoints {
+	function configurePointsOperator(address operator) external;
+}

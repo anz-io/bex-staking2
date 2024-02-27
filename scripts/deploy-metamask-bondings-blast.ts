@@ -5,9 +5,9 @@ import { MetamaskConnector } from "@web3camp/hardhat-metamask-connector";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 
 async function main() {
-  const mUSDBAddress = process.env.BLAST_MOCK_USDB!
   const backendSignerAddress = process.env.BACKEND_SIGNER!
   const protocolFeeDestination = process.env.ADDRESS_FEE_DESTINATION!
+  const blastPointOperator = process.env.BLAST_POINT_OPERATOR!
 
   const connector = new MetamaskConnector();
   const admin = await connector.getSigner();
@@ -15,7 +15,7 @@ async function main() {
   console.log("\x1b[0mSigner(Admin) Address:\x1b[32m", adminAddress, "\x1b[0m")
 
   const bondingsCore = await deployBondingsCore(
-    admin, backendSignerAddress, mUSDBAddress, protocolFeeDestination
+    admin, backendSignerAddress, blastPointOperator, protocolFeeDestination
   )
   console.log("\x1b[0mBondingsCore deployed to:\x1b[32m", await bondingsCore.getAddress())
 }
