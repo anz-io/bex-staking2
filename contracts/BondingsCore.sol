@@ -19,11 +19,11 @@ contract BondingsCore is OwnableUpgradeable {
     address public backendSigner;       // Signer for deploy new bondings
     uint256 public signatureValidTime;  // Valid time for a signature
 
-    /* ------------------- Tax ------------------ */
+    /* -------------- Protocol Fee -------------- */
     uint256 public protocolFeePercent;
     address public protocolFeeDestination;
 
-    /* ----------------- Address ---------------- */
+    /* ------------- Unit of account ------------ */
     address public unitTokenAddress;
 
     /* ----------------- Storage ---------------- */
@@ -78,7 +78,7 @@ contract BondingsCore is OwnableUpgradeable {
 
     /* ====================== Pure / View functions ===================== */
     function disableSignatureMode() public virtual pure returns (bool) {
-        return false;       // Override this for debugging in the testnet
+        return false;
     }
 
     function getPrice(uint256 supply, uint256 amount) public pure returns (uint256) {
@@ -217,18 +217,11 @@ contract BondingsCore is OwnableUpgradeable {
         // Local variables
         address user = _msgSender();
         uint8 stage = bondingsStage[name];
-        uint256 totalShare = bondingsTotalShare[name];
 
         // Check stage and share num
         require(share > 0, "Share must be greater than 0!");
         require(stage != 0, "Bondings not deployed!");
         require(userShare[name][user] >= share, "Insufficient shares!");
-
-        // Stage transition
-        if (stage == 2) {
-            if (totalShare - share <= fairLaunchSupply)
-                bondingsStage[name] = 1;           // Stage transition: 2 -> 1
-        }
 
         // Calculate fees and transfer tokens
         uint256 price = getSellPrice(name, share);
