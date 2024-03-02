@@ -14,8 +14,12 @@ const config: HardhatUserConfig = {
         network: "blast_sepolia",
         chainId: 168587773,
         urls: {
-          apiURL: "https://api.routescan.io/v2/network/testnet/evm/168587773/etherscan",
-          browserURL: "https://testnet.blastscan.io"
+          // 1. For Explorer: https://testnet.blastscan.io/
+          // apiURL: "https://api.routescan.io/v2/network/testnet/evm/168587773/etherscan",
+          // browserURL: "https://testnet.blastscan.io"
+          // 2. For Explorer: https://sepolia.blastscan.io/ (Etherscan version)
+          apiURL: "https://api-sepolia.blastscan.io/api",
+          browserURL: "https://sepolia.blastscan.io/"
         }
       }
     ]

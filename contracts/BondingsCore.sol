@@ -61,15 +61,15 @@ contract BondingsCore is OwnableUpgradeable {
     ) public virtual initializer {
         __Ownable_init(msg.sender);
 
-        fairLaunchSupply = 1000;
-        mintLimit = 10;
-        holdLimit = 50;
+        fairLaunchSupply = 100;
+        mintLimit = 1;
+        holdLimit = 10;
         maxSupply = 1000000000;
 
         backendSigner = backendSigner_;
         signatureValidTime = 3 minutes;
 
-        protocolFeePercent = 300;
+        protocolFeePercent = 100;
         protocolFeeDestination = protocolFeeDestination_;
 
         unitTokenAddress = unitTokenAddress_;
@@ -86,7 +86,7 @@ contract BondingsCore is OwnableUpgradeable {
         uint256 sum2 = (supply == 0 && amount == 1) ? 0 : 
             (supply + amount - 1) * (supply + amount) * (2 * (supply + amount - 1) + 1) / 6;
         uint256 summation = sum2 - sum1;
-        return summation;
+        return summation * 10 ** 12;
     }
 
     function getBuyPrice(string memory name, uint256 amount) public view returns (uint256) {
