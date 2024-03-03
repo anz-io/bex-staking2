@@ -13,6 +13,8 @@ contract BondingsCoreBlast is BondingsCore {
     address public constant BLAST_USDB = 0x4200000000000000000000000000000000000022;
     address public constant BLAST_POINT = 0x2fc95838c71e76ec69ff817983BFf17c710F34E0;
 
+    uint256[50] private __gap;
+
     function initialize(
         address backendSigner_, address pointsOperator_, address protocolFeeDestination_
     ) public override initializer {

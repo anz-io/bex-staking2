@@ -38,6 +38,9 @@ contract BondingsCore is OwnableUpgradeable {
 
     // keccak256(signature) => [whether this signature is used]
     mapping(bytes32 => bool) public signatureIsUsed;
+
+    /* ----------- Reserve for upgrade ---------- */
+    uint256[50] private __gap;
     
 
     /* ============================= Events ============================= */
