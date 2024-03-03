@@ -4,9 +4,9 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/interfaces/IERC20.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 
-contract BondingsCore is OwnableUpgradeable {
+contract BondingsCore is Ownable2StepUpgradeable {
 
     /* ============================ Variables =========================== */
     /* ----------------- Supply ----------------- */
@@ -64,6 +64,7 @@ contract BondingsCore is OwnableUpgradeable {
         address backendSigner_, address unitTokenAddress_, address protocolFeeDestination_
     ) public virtual initializer {
         __Ownable_init(msg.sender);
+        __Ownable2Step_init();
 
         fairLaunchSupply = 100;
         mintLimit = 1;
