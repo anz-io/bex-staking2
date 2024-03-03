@@ -53,6 +53,7 @@ contract BondingsCore is OwnableUpgradeable {
     event TransferBondings(
         string bondingsName, address indexed from, address indexed to, uint256 share
     );
+    event AdminSetParam(string paramName, bytes32 oldValue, bytes32 newValue);
 
 
     /* =========================== Constructor ========================== */
@@ -270,35 +271,57 @@ contract BondingsCore is OwnableUpgradeable {
     function setFairLaunchSupply(uint256 newFairLaunchSupply) public onlyOwner {
         require(newFairLaunchSupply <= maxSupply, "Fair launch supply must be less than max supply!");
         require(newFairLaunchSupply >= holdLimit, "Fair launch supply must be greater than hold limit!");
+        uint256 oldFairLaunchSupply = fairLaunchSupply;
         fairLaunchSupply = newFairLaunchSupply;
+        emit AdminSetParam("fairLaunchSupply", bytes32(oldFairLaunchSupply), bytes32(newFairLaunchSupply));
     }
 
     function setMintLimit(uint256 newMintLimit) public onlyOwner {
         require(newMintLimit <= holdLimit, "Mint limit must be less than hold limit!");
+        uint256 oldMintLimit = mintLimit;
         mintLimit = newMintLimit;
+        emit AdminSetParam("mintLimit", bytes32(oldMintLimit), bytes32(newMintLimit));
     }
 
     function setHoldLimit(uint256 newHoldLimit) public onlyOwner {
         require(newHoldLimit >= mintLimit, "Hold limit must be greater than mint limit!");
         require(newHoldLimit <= fairLaunchSupply, "Hold limit must be less than fair launch supply!");
+        uint256 oldHoldLimit = holdLimit;
         holdLimit = newHoldLimit;
+        emit AdminSetParam("holdLimit", bytes32(oldHoldLimit), bytes32(newHoldLimit));
     }
 
     function setMaxSupply(uint256 newMaxSupply) public onlyOwner {
         require(newMaxSupply >= fairLaunchSupply, "Max supply must be greater than fair launch supply!");
+        uint256 oldMaxSupply = maxSupply;
         maxSupply = newMaxSupply;
+        emit AdminSetParam("maxSupply", bytes32(oldMaxSupply), bytes32(newMaxSupply));
     }
 
     function setProtocolFeePercent(uint256 newProtocolFeePercent) public onlyOwner {
         require(newProtocolFeePercent <= 10000, "Protocol fee percent must be less than 10000!");
+        uint256 oldProtocolFeePercent = protocolFeePercent;
         protocolFeePercent = newProtocolFeePercent;
+        emit AdminSetParam("protocolFeePercent", bytes32(oldProtocolFeePercent), bytes32(newProtocolFeePercent));
     }
 
     function setBackendSigner(address newBackendSigner) public onlyOwner {
+        address oldBackendSigner = backendSigner;
         backendSigner = newBackendSigner;
+        emit AdminSetParam(
+            "backendSigner", 
+            bytes32(uint256(uint160(oldBackendSigner))), 
+            bytes32(uint256(uint160(newBackendSigner)))
+        );
     }
 
     function setProtocolFeeDestination(address newProtocolFeeDestination) public onlyOwner {
+        address oldProtocolFeeDestination = protocolFeeDestination;
         protocolFeeDestination = newProtocolFeeDestination;
+        emit AdminSetParam(
+            "protocolFeeDestination", 
+            bytes32(uint256(uint160(oldProtocolFeeDestination))), 
+            bytes32(uint256(uint160(newProtocolFeeDestination)))
+        );
     }
 }
