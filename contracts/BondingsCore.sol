@@ -303,7 +303,7 @@ contract BondingsCore is Ownable2StepUpgradeable {
     }
 
     function setProtocolFeePercent(uint256 newProtocolFeePercent) public onlyOwner {
-        require(newProtocolFeePercent <= 10000, "Protocol fee percent must be less than 10000!");
+        require(newProtocolFeePercent <= 1000, "Protocol fee percent must be less than 1000 (10%)!");
         uint256 oldProtocolFeePercent = protocolFeePercent;
         protocolFeePercent = newProtocolFeePercent;
         emit AdminSetParam("protocolFeePercent", bytes32(oldProtocolFeePercent), bytes32(newProtocolFeePercent));
