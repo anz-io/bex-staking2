@@ -128,7 +128,7 @@ contract BondingsCore is OwnableUpgradeable {
         address user,
         uint256 timestamp,
         bytes memory signature
-    ) public {
+    ) private {
         // Prevent replay attack
         bytes32 sigHash = keccak256(signature);
         require(!signatureIsUsed[sigHash], "Signature already used!");
